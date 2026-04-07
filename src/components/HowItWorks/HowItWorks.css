@@ -1,0 +1,40 @@
+.how-section { padding: 5rem 2rem; background: var(--dark); }
+
+.steps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  max-width: 1060px;
+  margin: 0 auto;
+  position: relative;
+}
+
+.step-card {
+  text-align: center; padding: 2rem 1.5rem;
+  background: rgba(255,255,255,.04);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  transition: transform .3s, border-color .3s;
+  position: relative;
+}
+.step-card:hover { transform: translateY(-6px); border-color: var(--border-pink); }
+
+.step-num {
+  width: 48px; height: 48px; border-radius: 50%;
+  margin: 0 auto .6rem;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Dancing Script', cursive; font-size: 1.4rem;
+  background: linear-gradient(135deg, var(--pink), var(--purple));
+  box-shadow: 0 5px 18px rgba(255,77,158,.35);
+}
+.step-icon  { font-size: 2rem; margin-bottom: .8rem; }
+.step-title { font-weight: 600; font-size: 1rem; margin-bottom: .5rem; }
+.step-desc  { font-size: .82rem; color: var(--gray); line-height: 1.7; }
+
+.step-arrow {
+  position: absolute; top: 50%; right: -1rem;
+  transform: translateY(-50%);
+  font-size: 1.3rem; color: var(--pink-light); z-index: 1;
+}
+
+@media (max-width: 768px) { .step-arrow { display: none; } }

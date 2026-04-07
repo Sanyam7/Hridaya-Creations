@@ -1,0 +1,24 @@
+.stats-section {
+  padding: 3rem 2rem;
+  background: linear-gradient(135deg, rgba(255,77,158,.08), rgba(124,58,237,.12));
+  border-top: 1px solid rgba(255,77,158,.15);
+  border-bottom: 1px solid rgba(255,77,158,.15);
+}
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 2rem;
+  max-width: 900px;
+  margin: 0 auto;
+  text-align: center;
+}
+.stat-number {
+  font-family: 'Dancing Script', cursive;
+  font-size: 3rem;
+  color: var(--pink);
+}
+.stat-label {
+  font-size: .85rem;
+  color: var(--gray);
+  margin-top: .3rem;
+}
