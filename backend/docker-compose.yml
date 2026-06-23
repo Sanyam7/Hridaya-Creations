@@ -1,0 +1,61 @@
+# ======================================================================
+# Docker Compose for Hridaya Creations backend + PostgreSQL
+# Usage: docker compose up --build
+# ======================================================================
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: hridaya-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-hridaya_creations}
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - hridaya-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_NAME:-hridaya_creations}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hridaya-network
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hridaya-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-hridaya_creations}
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      JPA_DDL_AUTO: ${JPA_DDL_AUTO:-update}
+      JWT_SECRET: ${JWT_SECRET:-bXlfc3VwZXJfc2VjdXJlX2p3dF9zZWNyZXRfa2V5X2Zvcl9ocmlkYXlhX2NyZWF0aW9uc18yMDI2X3Byb2R1Y3Rpb25fdXNl}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@ridhayacreations.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Admin@12345}
+      CLOUDINARY_ENABLED: ${CLOUDINARY_ENABLED:-false}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-demo}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-000000000000000}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-secret}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      SEED_SAMPLE_DATA: ${SEED_SAMPLE_DATA:-true}
+    ports:
+      - "${SERVER_PORT:-8080}:8080"
+    networks:
+      - hridaya-network
+
+volumes:
+  hridaya-postgres-data:
+    driver: local
+
+networks:
+  hridaya-network:
+    driver: bridge

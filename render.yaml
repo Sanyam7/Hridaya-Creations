@@ -1,0 +1,62 @@
+# =====================================================================
+# Render Blueprint — Hridaya Creations backend + PostgreSQL
+# One-click infra: provisions a managed Postgres and the Dockerized
+# Spring Boot service, wiring DB credentials and a generated JWT secret.
+#
+# Deploy: Render Dashboard → New → Blueprint → connect this repo.
+# Docs:   https://render.com/docs/blueprint-spec
+# =====================================================================
+databases:
+  - name: hridaya-postgres
+    databaseName: hridaya_creations
+    user: hridaya
+    plan: free
+    region: singapore
+
+services:
+  - type: web
+    name: hridaya-creations-backend
+    runtime: docker
+    plan: free
+    region: singapore
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    autoDeploy: true
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      # First boot creates the schema. After the first successful deploy you may
+      # set this to "validate" in the Render dashboard for stricter prod posture.
+      - key: JPA_DDL_AUTO
+        value: update
+      - key: SEED_SAMPLE_DATA
+        value: "true"
+      - key: CLOUDINARY_ENABLED
+        value: "false"
+      # "*" works because CORS uses allowedOriginPatterns (credentials-safe).
+      # Recommended: replace with your exact Netlify URL, e.g. https://your-site.netlify.app
+      - key: CORS_ALLOWED_ORIGINS
+        value: "*"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DB_HOST
+        fromDatabase:
+          name: hridaya-postgres
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: hridaya-postgres
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: hridaya-postgres
+          property: database
+      - key: DB_USERNAME
+        fromDatabase:
+          name: hridaya-postgres
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: hridaya-postgres
+          property: password

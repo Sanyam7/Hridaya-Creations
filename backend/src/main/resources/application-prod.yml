@@ -1,0 +1,21 @@
+spring:
+  jpa:
+    # Defaults are production-safe; override JPA_DDL_AUTO=update for the very first deploy
+    # so Hibernate can create the schema, then switch back to validate.
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:validate}
+    show-sql: ${JPA_SHOW_SQL:false}
+    properties:
+      hibernate:
+        format_sql: false
+
+logging:
+  level:
+    root: WARN
+    com.hridayacreations: INFO
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+
+app:
+  seed:
+    sample-data-enabled: ${SEED_SAMPLE_DATA:false}
