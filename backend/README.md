@@ -97,6 +97,23 @@ docker compose up --build
 - API: `http://localhost:8080`
 - Swagger UI: `http://localhost:8080/swagger-ui.html`
 
+## Deploy to Render (one-click)
+This repo ships a Render Blueprint ([`render.yaml`](../render.yaml)) that provisions a managed
+PostgreSQL **and** the Dockerized backend, wiring the DB credentials and generating the JWT secret.
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Sanyam7/Hridaya-Creations)
+
+1. Click the button (or Render Dashboard → **New → Blueprint**) and connect this GitHub repo.
+2. Render reads `render.yaml`, creates the database + web service, and builds the Docker image.
+3. After the first deploy, set **`CORS_ALLOWED_ORIGINS`** (service → Environment) to your Netlify
+   URL, e.g. `https://your-site.netlify.app`, and point the frontend's API base URL at the Render
+   service URL.
+
+Notes: free Postgres is time-limited on Render — for a longer-lived DB, create a free
+[Neon](https://neon.tech) database and set `DB_HOST/DB_PORT/DB_NAME/DB_USERNAME/DB_PASSWORD`
+(or `DB_URL`) on the service instead. The default admin (`admin@ridhayacreations.com` / `Admin@12345`)
+and sample catalog are seeded automatically.
+
 ## Run locally
 1. Create the database:
    ```sql
