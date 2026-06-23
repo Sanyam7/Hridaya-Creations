@@ -1,0 +1,18 @@
+# =====================================================================
+# Netlify configuration for the Hridaya Creations frontend.
+# The frontend (Create React App) now lives in /frontend after the
+# monorepo split, so the build runs from that base directory.
+# Settings here override the Netlify UI build settings.
+# =====================================================================
+[build]
+  base = "frontend"
+  command = "npm run build"
+  # Relative to `base`, i.e. the produced folder is frontend/build (CRA default).
+  publish = "build"
+
+# Single-page-app fallback so client-side routes (react-router-dom) resolve
+# on direct navigation / refresh instead of returning 404.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
