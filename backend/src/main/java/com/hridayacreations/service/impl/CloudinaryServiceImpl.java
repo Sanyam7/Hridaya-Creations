@@ -6,16 +6,15 @@ import com.hridayacreations.config.AppProperties;
 import com.hridayacreations.exception.BadRequestException;
 import com.hridayacreations.exception.FileStorageException;
 import com.hridayacreations.service.interfaces.CloudinaryService;
+import com.hridayacreations.service.interfaces.ImageStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 
 /**
  * Cloudinary-backed image storage. Validates content type and size, uploads into the configured
@@ -30,19 +29,22 @@ public class CloudinaryServiceImpl implements CloudinaryService {
             Set.of("image/jpeg", "image/png", "image/webp", "image/gif");
     private static final long MAX_BYTES = 10L * 1024 * 1024; // 10 MB
 
+    /** Marks a public id as a database-stored image rather than a Cloudinary asset. */
+    private static final String DB_PREFIX = "db:";
+
     private final Cloudinary cloudinary;
     private final AppProperties appProperties;
+    private final ImageStorageService imageStorageService;
 
     @Override
     public UploadResult upload(MultipartFile file) {
         validate(file);
 
+        // When Cloudinary isn't configured, persist the real image bytes in the database so uploads
+        // still work and survive restarts (served via /api/v1/images/{id}).
         if (!appProperties.getCloudinary().isEnabled()) {
-            String publicId = appProperties.getCloudinary().getFolder() + "/local-" + UUID.randomUUID();
-            String url = "https://placehold.co/600x600?text=" +
-                    StringUtils.replace(StringUtils.cleanPath(file.getOriginalFilename()), " ", "+");
-            log.info("[CLOUDINARY DISABLED] Skipping real upload; returning placeholder for {}", file.getOriginalFilename());
-            return new UploadResult(url, publicId);
+            ImageStorageService.StoredRef ref = imageStorageService.store(file);
+            return new UploadResult(ref.url(), DB_PREFIX + ref.id());
         }
 
         try {
@@ -62,7 +64,15 @@ public class CloudinaryServiceImpl implements CloudinaryService {
 
     @Override
     public void delete(String publicId) {
-        if (!StringUtils.hasText(publicId) || !appProperties.getCloudinary().isEnabled()) {
+        if (publicId == null || publicId.isBlank()) {
+            return;
+        }
+        // Database-stored image: delete the row regardless of Cloudinary config.
+        if (publicId.startsWith(DB_PREFIX)) {
+            imageStorageService.delete(publicId.substring(DB_PREFIX.length()));
+            return;
+        }
+        if (!appProperties.getCloudinary().isEnabled()) {
             return;
         }
         try {

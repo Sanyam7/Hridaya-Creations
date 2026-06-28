@@ -31,7 +31,8 @@ public final class SecurityConstants {
     /** Read-only catalog endpoints that are public for GET requests only. */
     public static final String[] PUBLIC_GET_ENDPOINTS = {
             "/api/v1/products/**",
-            "/api/v1/categories/**"
+            "/api/v1/categories/**",
+            "/api/v1/images/**"
     };
 
     /** Endpoints restricted to ADMIN role. */

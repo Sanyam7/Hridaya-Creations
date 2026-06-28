@@ -16,6 +16,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -26,7 +27,9 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Admin category management (create, update, delete, list).
@@ -61,6 +64,21 @@ public class AdminCategoryController {
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         categoryService.deleteCategory(id);
         return ResponseEntity.ok(ApiResponse.success(MessageConstants.CATEGORY_DELETED));
+    }
+
+    @PostMapping(path = "/{id}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Upload or replace a category's image")
+    public ResponseEntity<ApiResponse<CategoryResponse>> uploadImage(@PathVariable Long id,
+                                                                     @RequestPart("file") MultipartFile file) {
+        return ResponseEntity.ok(ApiResponse.success(MessageConstants.CATEGORY_UPDATED,
+                categoryService.setCategoryImage(id, file)));
+    }
+
+    @DeleteMapping("/{id}/image")
+    @Operation(summary = "Remove a category's image")
+    public ResponseEntity<ApiResponse<CategoryResponse>> deleteImage(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(MessageConstants.CATEGORY_UPDATED,
+                categoryService.removeCategoryImage(id)));
     }
 
     @GetMapping

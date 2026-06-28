@@ -15,12 +15,14 @@ import com.hridayacreations.repository.CategoryRepository;
 import com.hridayacreations.repository.ProductRepository;
 import com.hridayacreations.service.interfaces.AuditLogService;
 import com.hridayacreations.service.interfaces.CategoryService;
+import com.hridayacreations.service.interfaces.ImageStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Default category management implementation. Enforces unique category names and prevents deletion
@@ -35,6 +37,7 @@ public class CategoryServiceImpl implements CategoryService {
     private final ProductRepository productRepository;
     private final CategoryMapper categoryMapper;
     private final AuditLogService auditLogService;
+    private final ImageStorageService imageStorageService;
 
     @Override
     @Transactional
@@ -104,6 +107,39 @@ public class CategoryServiceImpl implements CategoryService {
             page = categoryRepository.findAll(pageable);
         }
         return PagedResponse.from(page, this::toResponseWithCount);
+    }
+
+    @Override
+    @Transactional
+    public CategoryResponse setCategoryImage(Long id, MultipartFile file) {
+        Category category = findCategory(id);
+        deleteStoredImageIfAny(category.getImageUrl());
+        ImageStorageService.StoredRef ref = imageStorageService.store(file);
+        category.setImageUrl(ref.url());
+        Category saved = categoryRepository.save(category);
+        auditLogService.log(AuditAction.CATEGORY_UPDATED, "Category", String.valueOf(id),
+                "Updated category image: " + saved.getCategoryName());
+        return toResponseWithCount(saved);
+    }
+
+    @Override
+    @Transactional
+    public CategoryResponse removeCategoryImage(Long id) {
+        Category category = findCategory(id);
+        deleteStoredImageIfAny(category.getImageUrl());
+        category.setImageUrl(null);
+        Category saved = categoryRepository.save(category);
+        auditLogService.log(AuditAction.CATEGORY_UPDATED, "Category", String.valueOf(id),
+                "Removed category image: " + saved.getCategoryName());
+        return toResponseWithCount(saved);
+    }
+
+    /** Delete the backing DB image if the URL points to one (ignores external URLs). */
+    private void deleteStoredImageIfAny(String imageUrl) {
+        String storedId = ImageStorageService.idFromUrl(imageUrl);
+        if (storedId != null) {
+            imageStorageService.delete(storedId);
+        }
     }
 
     private Category findCategory(Long id) {
