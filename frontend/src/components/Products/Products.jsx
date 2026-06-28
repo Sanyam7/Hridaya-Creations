@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { productApi } from "../../api";
+import { productApi, resolveImageUrl } from "../../api";
 import { PRODUCTS } from "../../data/products";
 import ProductCard from "./ProductCard";
 import VariantsModal from "../Modal/VariantsModal";
@@ -23,7 +23,7 @@ const VISUALS = PRODUCTS.reduce((acc, p) => {
 }, {});
 
 /** Group live backend products by category into the shape the cards expect. */
-function groupByCategory(apiProducts) {
+function groupByCategory(apiProducts, catImages = {}) {
   const groups = new Map();
   for (const p of apiProducts) {
     const cat = p.categoryName || "Other";
@@ -35,11 +35,16 @@ function groupByCategory(apiProducts) {
     const v = VISUALS[cat] || {};
     const emoji = v.emoji || "🎁";
     const colors = v.colors || DEFAULT_COLORS;
+    // Prefer an admin-uploaded category image, then the curated local image,
+    // then the first product's own primary image.
+    const uploadedCat = resolveImageUrl(catImages[cat]);
+    const firstProductImg = resolveImageUrl(items.find((p) => p.primaryImageUrl)?.primaryImageUrl);
+    const cardImage = uploadedCat || v.image || firstProductImg || null;
     cards.push({
       id: cat,
       name: cat,
       emoji,
-      image: v.image || null,
+      image: cardImage,
       desc: v.desc || `Personalized ${cat.toLowerCase()} crafted just for you.`,
       tag: "Collection",
       features: v.features || DEFAULT_FEATURES,
@@ -54,10 +59,10 @@ function groupByCategory(apiProducts) {
           desc: p.shortDescription || p.description || "",
           badge: p.featured ? "Featured ✨" : (p.tags && p.tags[0]) || "New",
           colors,
-          image: p.primaryImageUrl || null,
+          image: resolveImageUrl(p.primaryImageUrl),
         }))
         .sort((a, b) => a.price - b.price),
-      hasImage: !!v.image,
+      hasImage: !!cardImage,
     });
   }
   // Curated (image-backed) categories first, then the rest alphabetically.
@@ -70,6 +75,7 @@ export default function Products() {
   const [activeProduct, setActiveProduct] = useState(null);
   const [showAll, setShowAll] = useState(false);
   const [apiProducts, setApiProducts] = useState(null); // null = loading
+  const [catImages, setCatImages] = useState({});
   const [error, setError] = useState(false);
 
   useEffect(() => {
@@ -78,12 +84,22 @@ export default function Products() {
       .list({ page: 0, size: 200, sortBy: "createdAt", sortDir: "desc" })
       .then((d) => { if (active) setApiProducts(d.content || []); })
       .catch(() => { if (active) setError(true); });
+    // Category images (admin-uploaded) — best-effort enrichment.
+    productApi
+      .categories()
+      .then((d) => {
+        const items = Array.isArray(d) ? d : d.content || [];
+        const map = {};
+        for (const c of items) if (c.imageUrl) map[c.categoryName] = c.imageUrl;
+        if (active) setCatImages(map);
+      })
+      .catch(() => {});
     return () => { active = false; };
   }, []);
 
   const categories = useMemo(
-    () => (apiProducts ? groupByCategory(apiProducts) : []),
-    [apiProducts]
+    () => (apiProducts ? groupByCategory(apiProducts, catImages) : []),
+    [apiProducts, catImages]
   );
 
   // Resilient fallback: if the API is unreachable (e.g. backend cold start),

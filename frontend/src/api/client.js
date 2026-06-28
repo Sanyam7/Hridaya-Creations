@@ -96,3 +96,41 @@ function safeParse(text) {
     return {};
   }
 }
+
+/**
+ * Multipart upload (always authenticated). Sends a FormData body and lets the
+ * browser set the multipart boundary; otherwise mirrors request()'s handling.
+ */
+export async function upload(method, path, formData) {
+  const headers = {};
+  if (tokenStore.access) headers.Authorization = `Bearer ${tokenStore.access}`;
+
+  let res;
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, { method, headers, body: formData });
+  } catch {
+    throw new ApiError("Cannot reach the server. Please try again.", 0);
+  }
+  const text = await res.text();
+  const payload = text ? safeParse(text) : {};
+  if (res.status === 401) tokenStore.clear();
+  if (!res.ok || payload.success === false) {
+    throw new ApiError(payload.message || `Upload failed (${res.status})`, res.status, payload.errors);
+  }
+  return payload && "data" in payload ? payload.data : payload;
+}
+
+/**
+ * Resolve an image URL for use in <img src>. Backend-stored images come back as
+ * relative paths ("/api/v1/images/..") which must be served from the API origin;
+ * absolute and data URLs pass through unchanged.
+ */
+export function resolveImageUrl(url) {
+  if (!url) return null;
+  if (/^(https?:|data:|blob:)/i.test(url)) return url;
+  if (url.startsWith("/")) {
+    const origin = API_BASE_URL.replace(/\/api\/v1$/, "");
+    return origin + url;
+  }
+  return url;
+}

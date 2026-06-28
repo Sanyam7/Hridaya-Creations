@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { adminApi, PRODUCT_STATUSES } from "../../api";
+import { adminApi, PRODUCT_STATUSES, resolveImageUrl } from "../../api";
 
 const PAGE_SIZE = 10;
 const emptyForm = {
@@ -18,6 +18,7 @@ export default function AdminProducts() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(null); // null=closed, {}=new, {..}=edit
+  const [imgFor, setImgFor] = useState(null);   // product whose images are managed
   const [busyId, setBusyId] = useState(null);
 
   const load = useCallback(async () => {
@@ -91,16 +92,17 @@ export default function AdminProducts() {
           <table className="admin-table">
             <thead>
               <tr>
-                <th>Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Status</th><th></th>
+                <th>Image</th><th>Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Status</th><th></th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={6}><div className="admin-state">Loading…</div></td></tr>
+                <tr><td colSpan={7}><div className="admin-state">Loading…</div></td></tr>
               ) : data.content.length === 0 ? (
-                <tr><td colSpan={6}><div className="admin-state">No products found.</div></td></tr>
+                <tr><td colSpan={7}><div className="admin-state">No products found.</div></td></tr>
               ) : data.content.map(p => (
                 <tr key={p.id}>
+                  <td><Thumb url={p.primaryImageUrl} /></td>
                   <td>
                     <div style={{ fontWeight: 600 }}>{p.name}</div>
                     <div style={{ color: "var(--ad-muted)", fontSize: ".78rem" }}>{p.sku}</div>
@@ -115,6 +117,7 @@ export default function AdminProducts() {
                   <td>
                     <div className="cell-actions">
                       <button className="ad-btn ad-btn--sm" disabled={busyId === p.id} onClick={() => setEditing(toForm(p))}>Edit</button>
+                      <button className="ad-btn ad-btn--sm" disabled={busyId === p.id} onClick={() => setImgFor(p)}>Images</button>
                       <button className="ad-btn ad-btn--sm" disabled={busyId === p.id} onClick={() => restock(p)}>Stock</button>
                       {p.productStatus === "ACTIVE" ? (
                         <button className="ad-btn ad-btn--sm" disabled={busyId === p.id} onClick={() => act(p.id, () => adminApi.products.disable(p.id))}>Disable</button>
@@ -141,7 +144,87 @@ export default function AdminProducts() {
           onSaved={() => { setEditing(null); refresh(); }}
         />
       )}
+
+      {imgFor && (
+        <ProductImagesModal
+          product={imgFor}
+          onClose={(changed) => { setImgFor(null); if (changed) refresh(); }}
+        />
+      )}
     </>
+  );
+}
+
+function ProductImagesModal({ product, onClose }) {
+  const [images, setImages] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [changed, setChanged] = useState(false);
+
+  const load = useCallback(async () => {
+    try { setImages(await adminApi.productImages.list(product.id)); }
+    catch (e) { setErr(e.message); setImages([]); }
+  }, [product.id]);
+  useEffect(() => { load(); }, [load]);
+
+  const onPick = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setBusy(true); setErr("");
+    try {
+      const makePrimary = !images || images.length === 0;
+      await adminApi.productImages.upload(product.id, file, makePrimary);
+      setChanged(true);
+      await load();
+    } catch (e2) { setErr(e2.message); }
+    finally { setBusy(false); }
+  };
+
+  const del = async (imageId) => {
+    setBusy(true); setErr("");
+    try { await adminApi.productImages.remove(product.id, imageId); setChanged(true); await load(); }
+    catch (e2) { setErr(e2.message); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="ad-modal-overlay" onClick={() => !busy && onClose(changed)}>
+      <div className="ad-modal" onClick={e => e.stopPropagation()}>
+        <h3>Images — {product.name}</h3>
+        {err && <div className="admin-error">⚠ {err}</div>}
+
+        <div style={{ display: "flex", flexWrap: "wrap", gap: ".7rem", marginBottom: "1rem" }}>
+          {images === null ? (
+            <div className="admin-state" style={{ padding: "1rem" }}>Loading…</div>
+          ) : images.length === 0 ? (
+            <div className="admin-state" style={{ padding: "1rem" }}>No images yet.</div>
+          ) : images.map(img => (
+            <div key={img.id} style={{ position: "relative" }}>
+              <Thumb url={img.imageUrl} size={84} />
+              {img.primaryImage && (
+                <span className="badge badge--green" style={{ position: "absolute", top: 4, left: 4, fontSize: ".6rem" }}>Primary</span>
+              )}
+              <button className="ad-btn ad-btn--sm ad-btn--danger" disabled={busy}
+                style={{ position: "absolute", bottom: 4, right: 4, padding: "2px 6px" }}
+                onClick={() => del(img.id)}>✕</button>
+            </div>
+          ))}
+        </div>
+
+        <label className="ad-btn ad-btn--primary" style={{ cursor: busy ? "wait" : "pointer", display: "inline-block" }}>
+          {busy ? "Uploading…" : "+ Upload image"}
+          <input type="file" accept="image/*" hidden disabled={busy} onChange={onPick} />
+        </label>
+        <p style={{ color: "var(--ad-muted)", fontSize: ".78rem", marginTop: ".6rem" }}>
+          JPEG / PNG / WEBP / GIF, up to 10 MB. The first image becomes the primary.
+        </p>
+
+        <div className="ad-modal-actions">
+          <button className="ad-btn ad-btn--primary" onClick={() => onClose(changed)} disabled={busy}>Done</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -261,6 +344,21 @@ function ProductForm({ initial, cats, onClose, onSaved }) {
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+export function Thumb({ url, size = 40 }) {
+  const src = resolveImageUrl(url);
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: 8, overflow: "hidden", flexShrink: 0,
+      background: "var(--ad-bg)", display: "flex", alignItems: "center", justifyContent: "center",
+      border: "1px solid var(--ad-line)", color: "var(--ad-muted)", fontSize: size * 0.4,
+    }}>
+      {src ? (
+        <img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      ) : "🖼️"}
     </div>
   );
 }

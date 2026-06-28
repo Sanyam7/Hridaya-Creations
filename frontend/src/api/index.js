@@ -2,9 +2,9 @@
 // Typed-ish service functions grouped by domain. Each maps directly to a
 // backend REST endpoint (see Swagger at <backend>/swagger-ui.html).
 // =====================================================================
-import { request } from "./client";
+import { request, upload } from "./client";
 
-export { ApiError, API_BASE_URL, tokenStore } from "./client";
+export { ApiError, API_BASE_URL, tokenStore, resolveImageUrl } from "./client";
 
 export const authApi = {
   register: (payload) =>
@@ -77,6 +77,22 @@ export const adminApi = {
     create: (body) => request("POST", "/admin/categories", { auth: true, body }),
     update: (id, body) => request("PUT", `/admin/categories/${id}`, { auth: true, body }),
     remove: (id) => request("DELETE", `/admin/categories/${id}`, { auth: true }),
+    uploadImage: (id, file) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      return upload("POST", `/admin/categories/${id}/image`, fd);
+    },
+    removeImage: (id) => request("DELETE", `/admin/categories/${id}/image`, { auth: true }),
+  },
+  productImages: {
+    list: (productId) => request("GET", `/admin/products/${productId}/images`, { auth: true }),
+    upload: (productId, file, primary = false) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      return upload("POST", `/admin/products/${productId}/images?primary=${primary}`, fd);
+    },
+    remove: (productId, imageId) =>
+      request("DELETE", `/admin/products/${productId}/images/${imageId}`, { auth: true }),
   },
   orders: {
     list: (params) => request("GET", `/admin/orders${query(params)}`, { auth: true }),

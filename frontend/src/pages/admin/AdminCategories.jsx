@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { adminApi } from "../../api";
-import { Pager } from "./AdminProducts";
+import { Pager, Thumb } from "./AdminProducts";
 
 const PAGE_SIZE = 20;
 const empty = { categoryName: "", description: "", imageUrl: "", status: "ACTIVE" };
@@ -53,14 +53,15 @@ export default function AdminCategories() {
 
         <div className="admin-table-wrap">
           <table className="admin-table">
-            <thead><tr><th>Name</th><th>Description</th><th>Products</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>Image</th><th>Name</th><th>Description</th><th>Products</th><th>Status</th><th></th></tr></thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={5}><div className="admin-state">Loading…</div></td></tr>
+                <tr><td colSpan={6}><div className="admin-state">Loading…</div></td></tr>
               ) : data.content.length === 0 ? (
-                <tr><td colSpan={5}><div className="admin-state">No categories yet.</div></td></tr>
+                <tr><td colSpan={6}><div className="admin-state">No categories yet.</div></td></tr>
               ) : data.content.map(c => (
                 <tr key={c.id}>
+                  <td><Thumb url={c.imageUrl} /></td>
                   <td style={{ fontWeight: 600 }}>{c.categoryName}</td>
                   <td style={{ color: "var(--ad-muted)", maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.description || "—"}</td>
                   <td>{c.productCount ?? 0}</td>
@@ -91,6 +92,8 @@ function CategoryForm({ initial, onClose, onSaved }) {
   const [f, setF] = useState(initial);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  const [imgBusy, setImgBusy] = useState(false);
+  const [dirty, setDirty] = useState(false); // image changed -> reload list on close
   const set = (k, v) => { setF(p => ({ ...p, [k]: v })); setErr(""); };
 
   const submit = async (e) => {
@@ -99,7 +102,7 @@ function CategoryForm({ initial, onClose, onSaved }) {
     const body = {
       categoryName: f.categoryName.trim(),
       description: f.description.trim() || undefined,
-      imageUrl: f.imageUrl.trim() || undefined,
+      imageUrl: f.imageUrl ? f.imageUrl.trim() || undefined : undefined,
       status: f.status,
     };
     setSaving(true); setErr("");
@@ -110,8 +113,33 @@ function CategoryForm({ initial, onClose, onSaved }) {
     } catch (e2) { setErr(e2.message); setSaving(false); }
   };
 
+  const onPickImage = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setImgBusy(true); setErr("");
+    try {
+      const updated = await adminApi.categories.uploadImage(initial.id, file);
+      setF(p => ({ ...p, imageUrl: updated.imageUrl }));
+      setDirty(true);
+    } catch (e2) { setErr(e2.message); }
+    finally { setImgBusy(false); }
+  };
+
+  const removeImage = async () => {
+    setImgBusy(true); setErr("");
+    try {
+      const updated = await adminApi.categories.removeImage(initial.id);
+      setF(p => ({ ...p, imageUrl: updated.imageUrl || "" }));
+      setDirty(true);
+    } catch (e2) { setErr(e2.message); }
+    finally { setImgBusy(false); }
+  };
+
+  const close = () => { if (dirty) onSaved(); else onClose(); };
+
   return (
-    <div className="ad-modal-overlay" onClick={() => !saving && onClose()}>
+    <div className="ad-modal-overlay" onClick={() => !saving && !imgBusy && close()}>
       <form className="ad-modal" onClick={e => e.stopPropagation()} onSubmit={submit}>
         <h3>{isEdit ? "Edit category" : "New category"}</h3>
         {err && <div className="admin-error">⚠ {err}</div>}
@@ -124,10 +152,6 @@ function CategoryForm({ initial, onClose, onSaved }) {
             <label>Description</label>
             <textarea className="ad-input" value={f.description} onChange={e => set("description", e.target.value)} />
           </div>
-          <div className="ad-field col-span">
-            <label>Image URL</label>
-            <input className="ad-input" value={f.imageUrl} onChange={e => set("imageUrl", e.target.value)} placeholder="https://…" />
-          </div>
           <div className="ad-field">
             <label>Status</label>
             <select className="ad-select" value={f.status} onChange={e => set("status", e.target.value)}>
@@ -135,10 +159,31 @@ function CategoryForm({ initial, onClose, onSaved }) {
               <option value="INACTIVE">INACTIVE</option>
             </select>
           </div>
+
+          {/* Image management */}
+          <div className="ad-field col-span">
+            <label>Category image</label>
+            {isEdit ? (
+              <div style={{ display: "flex", alignItems: "center", gap: ".8rem", flexWrap: "wrap" }}>
+                <Thumb url={f.imageUrl} size={64} />
+                <label className="ad-btn ad-btn--sm" style={{ cursor: imgBusy ? "wait" : "pointer" }}>
+                  {imgBusy ? "Uploading…" : f.imageUrl ? "Replace…" : "Upload from device…"}
+                  <input type="file" accept="image/*" hidden disabled={imgBusy} onChange={onPickImage} />
+                </label>
+                {f.imageUrl && (
+                  <button type="button" className="ad-btn ad-btn--sm ad-btn--danger" disabled={imgBusy} onClick={removeImage}>Remove</button>
+                )}
+              </div>
+            ) : (
+              <p style={{ color: "var(--ad-muted)", fontSize: ".82rem", margin: 0 }}>
+                Create the category first, then reopen it to upload an image.
+              </p>
+            )}
+          </div>
         </div>
         <div className="ad-modal-actions">
-          <button type="button" className="ad-btn" onClick={onClose} disabled={saving}>Cancel</button>
-          <button type="submit" className="ad-btn ad-btn--primary" disabled={saving}>{saving ? "Saving…" : isEdit ? "Save changes" : "Create"}</button>
+          <button type="button" className="ad-btn" onClick={close} disabled={saving || imgBusy}>Close</button>
+          <button type="submit" className="ad-btn ad-btn--primary" disabled={saving || imgBusy}>{saving ? "Saving…" : isEdit ? "Save changes" : "Create"}</button>
         </div>
       </form>
     </div>
