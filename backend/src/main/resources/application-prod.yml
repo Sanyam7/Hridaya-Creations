@@ -8,6 +8,13 @@ spring:
     properties:
       hibernate:
         format_sql: false
+        # Isolate all tables under a dedicated schema. This lets the backend safely
+        # share a PostgreSQL instance with other apps (their tables stay in `public`).
+        # `create_namespaces=true` makes Hibernate emit `CREATE SCHEMA IF NOT EXISTS`
+        # during schema generation, so the schema is provisioned automatically.
+        default_schema: ${JPA_DEFAULT_SCHEMA:hridaya}
+        hbm2ddl:
+          create_namespaces: true
 
 logging:
   level:
