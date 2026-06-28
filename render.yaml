@@ -1,62 +1,74 @@
 # =====================================================================
-# Render Blueprint — Hridaya Creations backend + PostgreSQL
-# One-click infra: provisions a managed Postgres and the Dockerized
-# Spring Boot service, wiring DB credentials and a generated JWT secret.
+# Render Blueprint — Hridaya Creations backend
 #
-# Deploy: Render Dashboard → New → Blueprint → connect this repo.
+# The live backend is deployed at:
+#   https://hridaya-creations-backend.onrender.com   (Docker, region: oregon)
+#
+# DATABASE NOTE:
+#   Render's free tier allows only ONE free PostgreSQL per account. This
+#   backend therefore SHARES an existing PostgreSQL instance and isolates
+#   all of its tables under a dedicated `hridaya` schema (see
+#   JPA_DEFAULT_SCHEMA + Hibernate create_namespaces in application-prod.yml).
+#   Because the DB is shared/external to this blueprint, the connection
+#   values below are marked `sync: false` and must be entered in the Render
+#   dashboard (never commit DB credentials to a public repo).
+#
+#   To instead provision a DEDICATED database, uncomment the `databases:`
+#   block, wire DB_* via `fromDatabase`, and drop JPA_DEFAULT_SCHEMA.
+#
+# Deploy: Render Dashboard -> New -> Blueprint -> connect this repo.
 # Docs:   https://render.com/docs/blueprint-spec
 # =====================================================================
-databases:
-  - name: hridaya-postgres
-    databaseName: hridaya_creations
-    user: hridaya
-    plan: free
-    region: singapore
+
+# databases:
+#   - name: hridaya-postgres
+#     databaseName: hridaya_creations
+#     user: hridaya
+#     plan: free
+#     region: oregon
 
 services:
   - type: web
     name: hridaya-creations-backend
     runtime: docker
     plan: free
-    region: singapore
+    region: oregon
     rootDir: backend
     dockerfilePath: ./Dockerfile
     healthCheckPath: /actuator/health
     autoDeploy: true
+    # Monorepo: only rebuild when backend files change.
+    buildFilter:
+      paths:
+        - backend/**
     envVars:
       - key: SPRING_PROFILES_ACTIVE
         value: prod
-      # First boot creates the schema. After the first successful deploy you may
-      # set this to "validate" in the Render dashboard for stricter prod posture.
+      # First boot creates the schema/tables. After a successful first deploy
+      # you may switch this to "validate" in the dashboard for stricter prod.
       - key: JPA_DDL_AUTO
         value: update
+      # All tables are created/queried under this Postgres schema so the app
+      # can safely share a database instance with other projects.
+      - key: JPA_DEFAULT_SCHEMA
+        value: hridaya
       - key: SEED_SAMPLE_DATA
         value: "true"
       - key: CLOUDINARY_ENABLED
         value: "false"
-      # "*" works because CORS uses allowedOriginPatterns (credentials-safe).
-      # Recommended: replace with your exact Netlify URL, e.g. https://your-site.netlify.app
+      # Recommended: replace "*" with your exact Netlify URL.
       - key: CORS_ALLOWED_ORIGINS
         value: "*"
       - key: JWT_SECRET
         generateValue: true
+      # Shared/external PostgreSQL connection — set these in the dashboard.
       - key: DB_HOST
-        fromDatabase:
-          name: hridaya-postgres
-          property: host
+        sync: false
       - key: DB_PORT
-        fromDatabase:
-          name: hridaya-postgres
-          property: port
+        value: "5432"
       - key: DB_NAME
-        fromDatabase:
-          name: hridaya-postgres
-          property: database
+        sync: false
       - key: DB_USERNAME
-        fromDatabase:
-          name: hridaya-postgres
-          property: user
+        sync: false
       - key: DB_PASSWORD
-        fromDatabase:
-          name: hridaya-postgres
-          property: password
+        sync: false

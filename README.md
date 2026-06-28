@@ -27,9 +27,17 @@ See [backend/README.md](backend/README.md) for full documentation.
 cd backend
 ./mvnw spring-boot:run     # requires JDK 21
 ```
-**Deployment:** Render blueprint ([`render.yaml`](render.yaml)) provisions PostgreSQL + the
-Dockerized service. Swagger UI at `/swagger-ui.html`.
+**Deployment:** Live on Render (Docker) — **https://hridaya-creations-backend.onrender.com**
+- Swagger UI: https://hridaya-creations-backend.onrender.com/swagger-ui.html
+- Health: https://hridaya-creations-backend.onrender.com/actuator/health
+- Seeded admin: `admin@ridhayacreations.com` / `Admin@12345`
+- DB: shares a PostgreSQL instance, with all tables isolated under a dedicated `hridaya` schema.
+- Config: [`render.yaml`](render.yaml). A monorepo build filter limits backend rebuilds to `backend/**`.
+
+> Note: the free Render web service sleeps after ~15 min idle; the first request
+> after a cold start can take ~30–60s.
 
 ## Connecting the two
-Point the frontend's API base URL at the deployed backend URL, and set the backend's
+Point the frontend's API base URL at the deployed backend
+(`https://hridaya-creations-backend.onrender.com/api/v1`), and set the backend's
 `CORS_ALLOWED_ORIGINS` to the Netlify site URL.
