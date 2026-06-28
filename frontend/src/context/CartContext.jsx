@@ -10,8 +10,11 @@ export function CartProvider({ children }) {
     const cartItem = {
       cartId:        Date.now() + Math.random(),   // unique per addition
       productId:     product.id,
-      // Key used at checkout to resolve the matching backend product
-      // (see src/data/productMap.json). Mirrors "<variantId>|<variantName>".
+      // Real backend product id when the item came from the live catalog;
+      // checkout uses this directly (falling back to productMap otherwise).
+      backendProductId: product.backendProductId ?? null,
+      // Fallback key to resolve a backend product for legacy/local-catalog
+      // items (see src/data/productMap.json). Mirrors "<variantId>|<variantName>".
       variantKey:    `${product.id}|${product.name}`,
       name:          product.name,
       emoji:         product.emoji,

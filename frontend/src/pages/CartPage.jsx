@@ -77,7 +77,7 @@ export default function CartPage() {
     const merged = new Map();
     let unmapped = 0;
     for (const it of items) {
-      const pid = productMap[it.variantKey];
+      const pid = it.backendProductId || productMap[it.variantKey];
       if (!pid) { unmapped++; continue; }
       merged.set(pid, (merged.get(pid) || 0) + it.qty);
     }
