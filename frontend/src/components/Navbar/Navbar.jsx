@@ -66,6 +66,9 @@ export default function Navbar() {
 
         {currentUser ? (
           <div className="user-menu">
+            {currentUser.isAdmin && (
+              <Link to="/admin" className="btn-nav-outline" style={{ marginRight: ".5rem" }}>Admin</Link>
+            )}
             <div className="user-avatar">{currentUser.avatar}</div>
             <span className="user-name">{currentUser.name.split(" ")[0]}</span>
             <button className="btn-logout" onClick={handleLogout}>Logout</button>

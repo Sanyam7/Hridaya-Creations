@@ -48,6 +48,62 @@ export const orderApi = {
   create: (payload) => request("POST", "/orders", { auth: true, body: payload }),
 };
 
+/** Drop empty/null/undefined params, then build a query string. */
+function query(params = {}) {
+  const clean = {};
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && v !== "") clean[k] = v;
+  }
+  const qs = new URLSearchParams(clean).toString();
+  return qs ? `?${qs}` : "";
+}
+
+// ---- Admin (ROLE_ADMIN only) ----
+export const adminApi = {
+  products: {
+    list: (params) => request("GET", `/admin/products${query(params)}`, { auth: true }),
+    get: (id) => request("GET", `/admin/products/${id}`, { auth: true }),
+    create: (body) => request("POST", "/admin/products", { auth: true, body }),
+    update: (id, body) => request("PUT", `/admin/products/${id}`, { auth: true, body }),
+    remove: (id) => request("DELETE", `/admin/products/${id}`, { auth: true }),
+    enable: (id) => request("PATCH", `/admin/products/${id}/enable`, { auth: true }),
+    disable: (id) => request("PATCH", `/admin/products/${id}/disable`, { auth: true }),
+    pricing: (id, body) => request("PATCH", `/admin/products/${id}/pricing`, { auth: true, body }),
+    stock: (id, stockQuantity) =>
+      request("PATCH", `/admin/products/${id}/stock`, { auth: true, body: { stockQuantity } }),
+  },
+  categories: {
+    list: (params) => request("GET", `/admin/categories${query(params)}`, { auth: true }),
+    create: (body) => request("POST", "/admin/categories", { auth: true, body }),
+    update: (id, body) => request("PUT", `/admin/categories/${id}`, { auth: true, body }),
+    remove: (id) => request("DELETE", `/admin/categories/${id}`, { auth: true }),
+  },
+  orders: {
+    list: (params) => request("GET", `/admin/orders${query(params)}`, { auth: true }),
+    get: (id) => request("GET", `/admin/orders/${id}`, { auth: true }),
+    setStatus: (id, status) =>
+      request("PATCH", `/admin/orders/${id}/status`, { auth: true, body: { status } }),
+  },
+  users: {
+    list: (params) => request("GET", `/admin/users${query(params)}`, { auth: true }),
+    setStatus: (id, enabled) =>
+      request("PATCH", `/admin/users/${id}/status`, { auth: true, body: { enabled } }),
+  },
+};
+
+// Allowed forward order-status transitions (mirrors the backend state machine).
+export const ORDER_STATUS_TRANSITIONS = {
+  PENDING: ["CONFIRMED", "CANCELLED"],
+  CONFIRMED: ["PROCESSING", "CANCELLED"],
+  PROCESSING: ["SHIPPED", "CANCELLED"],
+  SHIPPED: ["DELIVERED"],
+  DELIVERED: [],
+  CANCELLED: [],
+};
+
+export const PRODUCT_STATUSES = ["ACTIVE", "INACTIVE", "OUT_OF_STOCK", "DISCONTINUED"];
+export const ORDER_STATUSES = ["PENDING", "CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED"];
+
 /** Map a backend UserResponse to the shape the UI expects. */
 export function mapUser(u) {
   if (!u) return null;
