@@ -10,6 +10,9 @@ export function CartProvider({ children }) {
     const cartItem = {
       cartId:        Date.now() + Math.random(),   // unique per addition
       productId:     product.id,
+      // Key used at checkout to resolve the matching backend product
+      // (see src/data/productMap.json). Mirrors "<variantId>|<variantName>".
+      variantKey:    `${product.id}|${product.name}`,
       name:          product.name,
       emoji:         product.emoji,
       price:         product.price,

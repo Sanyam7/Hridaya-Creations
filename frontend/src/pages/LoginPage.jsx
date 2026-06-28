@@ -23,13 +23,10 @@ export default function LoginPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    await new Promise(r => setTimeout(r, 500)); // small UX delay
-    const ok = login({ email: form.email, password: form.password });
+    const ok = await login({ email: form.email, password: form.password });
     setLoading(false);
     if (ok) navigate("/");
   };
-
-  const fillDemo = () => setForm({ email: "demo@hridaya.com", password: "demo123" });
 
   return (
     <div className="auth-page">
@@ -41,12 +38,6 @@ export default function LoginPage() {
         {/* Logo */}
         <Link to="/" className="auth-logo">Hridaya Creations</Link>
         <p className="auth-tagline">Welcome back! Log in to continue.</p>
-
-        {/* Demo hint */}
-        <div className="demo-hint">
-          <span>🎯 Try the demo account:</span>
-          <button className="demo-fill" onClick={fillDemo}>Fill credentials</button>
-        </div>
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <div className="auth-field">

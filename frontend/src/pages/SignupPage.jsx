@@ -7,7 +7,7 @@ export default function SignupPage() {
   const { signup, authError, clearError, currentUser } = useAuth();
   const navigate = useNavigate();
 
-  const [form, setForm]       = useState({ name: "", email: "", password: "", confirm: "" });
+  const [form, setForm]       = useState({ name: "", email: "", mobile: "", password: "", confirm: "" });
   const [loading, setLoading] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
   const [localErr, setLocalErr] = useState("");
@@ -21,8 +21,9 @@ export default function SignupPage() {
   const set = (k, v) => { setForm(p => ({ ...p, [k]: v })); setLocalErr(""); };
 
   const validate = () => {
-    if (!form.name.trim())         return "Please enter your name.";
-    if (form.password.length < 6)  return "Password must be at least 6 characters.";
+    if (!form.name.trim())              return "Please enter your name.";
+    if (!/^[6-9][0-9]{9}$/.test(form.mobile)) return "Enter a valid 10-digit Indian mobile number.";
+    if (form.password.length < 6)       return "Password must be at least 6 characters.";
     if (form.password !== form.confirm) return "Passwords do not match.";
     return null;
   };
@@ -32,8 +33,12 @@ export default function SignupPage() {
     const err = validate();
     if (err) { setLocalErr(err); return; }
     setLoading(true);
-    await new Promise(r => setTimeout(r, 500));
-    const ok = signup({ name: form.name.trim(), email: form.email, password: form.password });
+    const ok = await signup({
+      name: form.name.trim(),
+      email: form.email,
+      password: form.password,
+      mobileNumber: form.mobile,
+    });
     setLoading(false);
     if (ok) navigate("/");
   };
@@ -80,6 +85,20 @@ export default function SignupPage() {
               placeholder="you@example.com"
               value={form.email}
               onChange={e => set("email", e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="auth-field">
+            <label className="auth-label">Mobile Number</label>
+            <input
+              className="auth-input"
+              type="tel"
+              inputMode="numeric"
+              maxLength={10}
+              placeholder="10-digit mobile number"
+              value={form.mobile}
+              onChange={e => set("mobile", e.target.value.replace(/\D/g, ""))}
               required
             />
           </div>
