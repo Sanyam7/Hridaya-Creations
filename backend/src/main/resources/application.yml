@@ -143,6 +143,12 @@ management:
       show-details: when_authorized
       probes:
         enabled: true
+  health:
+    # Mail is optional (app.mail.enabled defaults to false) and SMTP creds are not
+    # configured in most environments. Excluding it keeps /actuator/health UP so
+    # platform health checks (Render/K8s) don't fail on an unconfigured mailbox.
+    mail:
+      enabled: false
 
 # ----------------------------------------------------------------------
 # Logging
