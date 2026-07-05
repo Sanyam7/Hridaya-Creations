@@ -69,7 +69,16 @@ export default function CustomizeModal({ product, onClose, onCloseAll }) {
         <button className="modal-close" onClick={onClose}>✕</button>
 
         <div className="modal-header">
-          <div className="modal-emoji">{product.emoji}</div>
+          {product.image ? (
+            <img
+              src={product.image}
+              alt={product.name}
+              style={{ width: 96, height: 96, objectFit: "cover", borderRadius: 14, margin: "0 auto .6rem", display: "block" }}
+              onError={(e) => { e.target.style.display = "none"; }}
+            />
+          ) : (
+            <div className="modal-emoji">{product.emoji}</div>
+          )}
           <h2 className="modal-title">Customize Your {product.name}</h2>
           <p className="modal-subtitle">Make it uniquely yours</p>
           <div className="modal-price">Starting at ₹{product.price}</div>

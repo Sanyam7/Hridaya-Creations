@@ -49,8 +49,17 @@ export default function VariantsModal({ product, onClose }) {
               {/* Badge */}
               <span className="vm-badge">{variant.badge}</span>
 
-              {/* Emoji display */}
-              <div className="vm-card-icon">{variant.emoji}</div>
+              {/* Image (admin-uploaded) with emoji fallback */}
+              <div className="vm-card-icon">
+                {variant.image ? (
+                  <img
+                    src={variant.image}
+                    alt={variant.name}
+                    style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "inherit" }}
+                    onError={(e) => { e.target.style.display = "none"; e.target.parentNode.textContent = variant.emoji; }}
+                  />
+                ) : variant.emoji}
+              </div>
 
               {/* Info */}
               <div className="vm-card-name">{variant.name}</div>
