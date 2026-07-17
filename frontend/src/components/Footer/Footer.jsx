@@ -18,9 +18,22 @@ export default function Footer() {
             with love and precision. Based in Nagpur, delivering across India.
           </p>
           <div className="footer-socials">
-            {["📸 Instagram","💬 WhatsApp","📘 Facebook"].map(s => (
-              <a key={s} href="#" className="social-link">{s}</a>
-            ))}
+            <a
+              href="https://www.instagram.com/hridayacreation11?igsh=Z3I0bzFtd3FvOHN2"
+              className="social-link"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              📸 Instagram
+            </a>
+            <a
+              href="https://wa.me/message/OYAXKW53PRYOO1"
+              className="social-link"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              💬 WhatsApp
+            </a>
           </div>
         </div>
 
@@ -57,7 +70,9 @@ export default function Footer() {
           <h4>Get in Touch</h4>
           <ul>
             <li><a href="mailto:hello@hridayacreations.in" className="footer-link">📧 hello@hridayacreations.in</a></li>
-            <li><a href="tel:+919876543210" className="footer-link">📱 +91 98765 43210</a></li>
+            <li><a href="tel:+917774956661" className="footer-link">📱 +91 77749 56661</a></li>
+            <li><a href="https://wa.me/message/OYAXKW53PRYOO1" className="footer-link" target="_blank" rel="noopener noreferrer">💬 WhatsApp Us</a></li>
+            <li><a href="https://www.instagram.com/hridayacreation11?igsh=Z3I0bzFtd3FvOHN2" className="footer-link" target="_blank" rel="noopener noreferrer">📸 @hridayacreation11</a></li>
             <li><span className="footer-link-plain">📍 Yavatmal, Maharashtra</span></li>
             <li><span className="footer-link-plain">🕐 Available 24/7</span></li>
           </ul>
