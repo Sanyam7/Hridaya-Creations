@@ -5,27 +5,29 @@
 #   https://hridaya-creations-backend.onrender.com   (Docker, region: oregon)
 #
 # DATABASE NOTE:
-#   Render's free tier allows only ONE free PostgreSQL per account. This
-#   backend therefore SHARES an existing PostgreSQL instance and isolates
-#   all of its tables under a dedicated `hridaya` schema (see
-#   JPA_DEFAULT_SCHEMA + Hibernate create_namespaces in application-prod.yml).
-#   Because the DB is shared/external to this blueprint, the connection
-#   values below are marked `sync: false` and must be entered in the Render
-#   dashboard (never commit DB credentials to a public repo).
+#   The database is hosted on NEON (https://neon.tech), external to this
+#   blueprint. Neon REQUIRES SSL, so the connection string must include
+#   `?sslmode=require`. Set the connection values in the Render dashboard
+#   (never commit DB credentials to a public repo):
 #
-#   To instead provision a DEDICATED database, uncomment the `databases:`
-#   block, wire DB_* via `fromDatabase`, and drop JPA_DEFAULT_SCHEMA.
+#     DB_URL       jdbc:postgresql://<endpoint>.<region>.aws.neon.tech/<db>?sslmode=require
+#     DB_USERNAME  <neon role>
+#     DB_PASSWORD  <neon password>
+#
+#   Use Neon's DIRECT (non-pooled) endpoint — HikariCP already pools, and the
+#   direct endpoint supports server-side prepared statements that Hibernate
+#   relies on (Neon's PgBouncer pooler runs in transaction mode and would need
+#   prepared statements disabled). Pick the Neon region CLOSEST to this Render
+#   service (region: oregon below) -> AWS "US West 2 (Oregon)" to minimise
+#   query latency between the backend and the database.
+#
+#   Tables stay isolated under the `hridaya` schema (JPA_DEFAULT_SCHEMA +
+#   Hibernate create_namespaces in application-prod.yml), which is harmless on
+#   a dedicated Neon database and keeps the app portable.
 #
 # Deploy: Render Dashboard -> New -> Blueprint -> connect this repo.
-# Docs:   https://render.com/docs/blueprint-spec
+# Docs:   https://render.com/docs/blueprint-spec  |  https://neon.tech/docs
 # =====================================================================
-
-# databases:
-#   - name: hridaya-postgres
-#     databaseName: hridaya_creations
-#     user: hridaya
-#     plan: free
-#     region: oregon
 
 services:
   - type: web
@@ -61,14 +63,19 @@ services:
         value: "*"
       - key: JWT_SECRET
         generateValue: true
-      # Shared/external PostgreSQL connection — set these in the dashboard.
-      - key: DB_HOST
-        sync: false
-      - key: DB_PORT
-        value: "5432"
-      - key: DB_NAME
+      # Neon PostgreSQL connection — set these in the dashboard (sync: false).
+      # DB_URL must be the full Neon JDBC string INCLUDING ?sslmode=require, e.g.
+      #   jdbc:postgresql://ep-cool-name-123456.us-west-2.aws.neon.tech/hridaya_creations?sslmode=require
+      - key: DB_URL
         sync: false
       - key: DB_USERNAME
         sync: false
       - key: DB_PASSWORD
         sync: false
+      # Keep at least 1 idle connection so Neon's compute is reachable quickly;
+      # lower DB_POOL_MIN_IDLE to 0 if you want Neon to scale-to-zero (autosuspend)
+      # and save free-tier compute hours, at the cost of a cold-start on first query.
+      - key: DB_POOL_MIN_IDLE
+        value: "1"
+      - key: DB_POOL_MAX_SIZE
+        value: "10"
