@@ -3,8 +3,12 @@ import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import { cartApi, addressApi, orderApi } from "../api";
+import { colorSwatchStyle, normalizeProductColors } from "../constants/productColors";
 import productMap from "../data/productMap.json";
 import "./CartPage.css";
+
+/** Resolve a stored customization colour to {id, name, hexCode}, or null when there is none. */
+const selectedColor = (color) => (color ? normalizeProductColors([color])[0] || null : null);
 
 export default function CartPage() {
   const { items, removeFromCart, updateQty, clearCart, totalItems, totalPrice } = useCart();
@@ -47,8 +51,9 @@ export default function CartPage() {
       .map((i) => {
         const c = i.customization || {};
         const bits = [];
+        const color = selectedColor(c.color);
         if (c.printName) bits.push(`Name: ${c.printName}`);
-        if (c.color)     bits.push(`Color: ${c.color}`);
+        if (color)       bits.push(`Color: ${color.name}`);
         if (c.font)      bits.push(`Font: ${c.font}`);
         if (c.message)   bits.push(`Msg: ${c.message}`);
         if (c.fileName)  bits.push(`File: ${c.fileName}`);
@@ -224,17 +229,17 @@ export default function CartPage() {
                     <div className="item-note">📝 {item.customization.special}</div>
                   )}
 
-                  {item.customization.color && (
+                  {selectedColor(item.customization.color) && (
                     <div className="item-color-row">
                       <span className="item-color-label">Color:</span>
                       <span
                         className="item-color-dot"
-                        style={{
-                          background: item.customization.color === "gold"
-                            ? "linear-gradient(135deg,#ffd700,#ff8c00)"
-                            : item.customization.color
-                        }}
+                        style={colorSwatchStyle(selectedColor(item.customization.color).hexCode)}
+                        aria-hidden="true"
                       />
+                      <span className="item-color-name">
+                        {selectedColor(item.customization.color).name}
+                      </span>
                     </div>
                   )}
                 </div>

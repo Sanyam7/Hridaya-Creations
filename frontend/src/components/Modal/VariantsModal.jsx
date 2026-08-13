@@ -1,5 +1,10 @@
 import { useState } from "react";
 import CustomizeModal from "./CustomizeModal";
+import {
+  colorSwatchStyle,
+  normalizeProductColors,
+  productHasColors,
+} from "../../constants/productColors";
 import "./VariantsModal.css";
 
 export default function VariantsModal({ product, onClose }) {
@@ -65,17 +70,8 @@ export default function VariantsModal({ product, onClose }) {
               <div className="vm-card-name">{variant.name}</div>
               <div className="vm-card-desc">{variant.desc}</div>
 
-              {/* Color swatches */}
-              <div className="vm-swatches">
-                {variant.colors.map((c, i) => (
-                  <span
-                    key={i}
-                    className="vm-swatch"
-                    style={{ background: c === "gold" ? "linear-gradient(135deg,#ffd700,#ff8c00)" : c }}
-                    title={c}
-                  />
-                ))}
-              </div>
+              {/* Color swatches — only for variants the admin gave colour options */}
+              <VariantSwatches variant={variant} />
 
               {/* Price + Button */}
               <div className="vm-card-footer">
@@ -92,6 +88,32 @@ export default function VariantsModal({ product, onClose }) {
         </div>
 
       </div>
+    </div>
+  );
+}
+
+/**
+ * The colours a variant is available in. Renders nothing when it has none, and always exposes
+ * the colour names as text so the row never relies on colour alone to convey information.
+ */
+function VariantSwatches({ variant }) {
+  if (!productHasColors(variant)) return null;
+  const colors = normalizeProductColors(variant.colors);
+
+  return (
+    <div className="vm-swatches">
+      <span className="vm-sr-only">
+        Available in {colors.map((c) => c.name).join(", ")}
+      </span>
+      {colors.map((color) => (
+        <span
+          key={color.id}
+          className="vm-swatch"
+          style={colorSwatchStyle(color.hexCode)}
+          title={color.name}
+          aria-hidden="true"
+        />
+      ))}
     </div>
   );
 }

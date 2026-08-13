@@ -78,12 +78,15 @@
 
 /* Color swatches */
 .color-options { display: flex; gap: .55rem; flex-wrap: wrap; margin-top: .4rem; }
+.color-selected-name { color: var(--gray); font-weight: 400; }
 .color-swatch {
   width: 30px; height: 30px; border-radius: 50%; cursor: pointer;
   border: 2px solid transparent;
   transition: transform .15s, border-color .15s;
+  padding: 0; flex-shrink: 0;
 }
 .color-swatch:hover, .color-swatch.active { transform: scale(1.2); border-color: #fff; }
+.color-swatch:focus-visible { outline: 2px solid var(--pink, #ff4d9e); outline-offset: 2px; }
 
 /* Qty chips */
 .qty-options { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .4rem; }

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { productApi, resolveImageUrl } from "../../api";
+import { normalizeProductColors } from "../../constants/productColors";
 import { PRODUCTS } from "../../data/products";
 import ProductCard from "./ProductCard";
 import VariantsModal from "../Modal/VariantsModal";
@@ -7,7 +8,6 @@ import "./Products.css";
 
 // Sensible visual defaults for categories the curated catalog doesn't cover
 // (e.g. brand-new categories an admin creates).
-const DEFAULT_COLORS = ["#e0218a", "#457b9d", "#2d6a4f", "#f77f00", "#9d4edd"];
 const DEFAULT_FEATURES = [
   "Personalized just for you",
   "Premium materials",
@@ -15,10 +15,11 @@ const DEFAULT_FEATURES = [
   "Carefully handcrafted",
 ];
 
-// Reuse the curated emoji/image/colors/features from the local catalog,
-// keyed by name (the backend categories were seeded from these names).
+// Reuse the curated emoji/image/features from the local catalog, keyed by name
+// (the backend categories were seeded from these names). Colours are not taken
+// from here — they come per-product from the admin's configuration.
 const VISUALS = PRODUCTS.reduce((acc, p) => {
-  acc[p.name] = { emoji: p.emoji, image: p.image, colors: p.colors, features: p.features, desc: p.desc };
+  acc[p.name] = { emoji: p.emoji, image: p.image, features: p.features, desc: p.desc };
   return acc;
 }, {});
 
@@ -34,7 +35,6 @@ function groupByCategory(apiProducts, catImages = {}) {
   for (const [cat, items] of groups.entries()) {
     const v = VISUALS[cat] || {};
     const emoji = v.emoji || "🎁";
-    const colors = v.colors || DEFAULT_COLORS;
     // Prefer an admin-uploaded category image, then the curated local image,
     // then the first product's own primary image.
     const uploadedCat = resolveImageUrl(catImages[cat]);
@@ -48,7 +48,6 @@ function groupByCategory(apiProducts, catImages = {}) {
       desc: v.desc || `Personalized ${cat.toLowerCase()} crafted just for you.`,
       tag: "Collection",
       features: v.features || DEFAULT_FEATURES,
-      colors,
       variants: items
         .map((p) => ({
           id: p.id,                       // real backend product id
@@ -58,7 +57,9 @@ function groupByCategory(apiProducts, catImages = {}) {
           price: Number(p.sellingPrice),
           desc: p.shortDescription || p.description || "",
           badge: p.featured ? "Featured ✨" : (p.tags && p.tags[0]) || "New",
-          colors,
+          // Exactly the colours the admin configured — absent for older products.
+          hasColors: !!p.hasColors,
+          colors: normalizeProductColors(p.colors),
           image: resolveImageUrl(p.primaryImageUrl),
         }))
         .sort((a, b) => a.price - b.price),

@@ -1,11 +1,16 @@
 import { useEffect, useState, useCallback } from "react";
 import { adminApi, PRODUCT_STATUSES, resolveImageUrl } from "../../api";
+import { normalizeProductColors } from "../../constants/productColors";
+import ProductColorSelector from "./ProductColorSelector";
 
 const PAGE_SIZE = 10;
 const emptyForm = {
   name: "", categoryId: "", sellingPrice: "", originalPrice: "",
   stockQuantity: "", shortDescription: "", description: "", sku: "",
   productStatus: "ACTIVE", customizable: true, featured: false, tags: "",
+  // Colours default to off: safest for a brand-new product, and it matches how
+  // every product created before this feature existed is treated.
+  hasColors: false, colors: [],
 };
 
 export default function AdminProducts() {
@@ -228,7 +233,13 @@ function ProductImagesModal({ product, onClose }) {
   );
 }
 
+/**
+ * Map an API product onto the form shape. Products created before colours existed come back
+ * without `hasColors`/`colors`, so both are coerced to a safe empty configuration; a product
+ * that somehow carries colours without the flag is still shown as having them.
+ */
 function toForm(p) {
+  const colors = normalizeProductColors(p.colors);
   return {
     id: p.id,
     name: p.name || "",
@@ -243,6 +254,8 @@ function toForm(p) {
     customizable: !!p.customizable,
     featured: !!p.featured,
     tags: (p.tags || []).join(", "),
+    hasColors: p.hasColors == null ? colors.length > 0 : !!p.hasColors,
+    colors,
   };
 }
 
@@ -251,7 +264,22 @@ function ProductForm({ initial, cats, onClose, onSaved }) {
   const [f, setF] = useState(initial);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  const [colorErr, setColorErr] = useState("");
   const set = (k, v) => { setF(p => ({ ...p, [k]: v })); setErr(""); };
+
+  // Colour edits are product modifications like any other, so they feed the same
+  // dirty check that guards against closing the form with unsaved work.
+  const dirty = JSON.stringify(f) !== JSON.stringify(initial);
+  const tryClose = () => {
+    if (saving) return;
+    if (dirty && !window.confirm("Discard your unsaved changes to this product?")) return;
+    onClose();
+  };
+
+  const setColors = ({ hasColors, colors }) => {
+    setF(p => ({ ...p, hasColors, colors }));
+    setErr(""); setColorErr("");
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -259,6 +287,11 @@ function ProductForm({ initial, cats, onClose, onSaved }) {
     if (!f.categoryId) return setErr("Please choose a category.");
     if (!(Number(f.sellingPrice) > 0)) return setErr("Selling price must be greater than 0.");
     if (f.stockQuantity === "" || Number(f.stockQuantity) < 0) return setErr("Stock quantity is required.");
+    if (f.hasColors && f.colors.length === 0) {
+      const message = "Please select at least one colour for this product, or set colour options to No.";
+      setColorErr(message);
+      return setErr(message);
+    }
 
     const body = {
       name: f.name.trim(),
@@ -272,6 +305,12 @@ function ProductForm({ initial, cats, onClose, onSaved }) {
       featured: f.featured,
       customizable: f.customizable,
       tags: f.tags ? f.tags.split(",").map(t => t.trim()).filter(Boolean) : undefined,
+      // Sent on every save as the complete replacement list, so colours the admin
+      // removed are dropped server-side rather than left behind.
+      hasColors: f.hasColors,
+      colors: f.hasColors
+        ? f.colors.map(({ id, name, hexCode }) => ({ id, name, hexCode }))
+        : [],
     };
     if (!isEdit && f.sku.trim()) body.sku = f.sku.trim();
 
@@ -284,7 +323,7 @@ function ProductForm({ initial, cats, onClose, onSaved }) {
   };
 
   return (
-    <div className="ad-modal-overlay" onClick={() => !saving && onClose()}>
+    <div className="ad-modal-overlay" onClick={tryClose}>
       <form className="ad-modal" onClick={e => e.stopPropagation()} onSubmit={submit}>
         <h3>{isEdit ? "Edit product" : "New product"}</h3>
         {err && <div className="admin-error">⚠ {err}</div>}
@@ -336,9 +375,16 @@ function ProductForm({ initial, cats, onClose, onSaved }) {
           </div>
           <label className="ad-check"><input type="checkbox" checked={f.customizable} onChange={e => set("customizable", e.target.checked)} /> Customizable</label>
           <label className="ad-check"><input type="checkbox" checked={f.featured} onChange={e => set("featured", e.target.checked)} /> Featured</label>
+          <ProductColorSelector
+            hasColors={f.hasColors}
+            colors={f.colors}
+            onChange={setColors}
+            disabled={saving}
+            error={colorErr}
+          />
         </div>
         <div className="ad-modal-actions">
-          <button type="button" className="ad-btn" onClick={onClose} disabled={saving}>Cancel</button>
+          <button type="button" className="ad-btn" onClick={tryClose} disabled={saving}>Cancel</button>
           <button type="submit" className="ad-btn ad-btn--primary" disabled={saving}>
             {saving ? "Saving…" : isEdit ? "Save changes" : "Create product"}
           </button>

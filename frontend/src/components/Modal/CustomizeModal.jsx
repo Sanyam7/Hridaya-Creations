@@ -1,7 +1,12 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
+import {
+  colorSwatchStyle,
+  normalizeProductColors,
+  productHasColors,
+} from "../../constants/productColors";
 import "./Modal.css";
 
 const FONTS = ["Classic Serif", "Script / Cursive", "Bold Modern", "Handwritten", "Elegant Thin"];
@@ -12,9 +17,17 @@ export default function CustomizeModal({ product, onClose, onCloseAll }) {
   const { addToCart }      = useCart();
   const navigate           = useNavigate();
 
+  // Only products the admin gave colour options get a colour choice; everything
+  // else (including products created before colours existed) skips it entirely.
+  const showColors = productHasColors(product);
+  const colors = useMemo(
+    () => (showColors ? normalizeProductColors(product.colors) : []),
+    [showColors, product.colors]
+  );
+
   const [form, setForm]       = useState({
     printName: "", message: "", qty: "1",
-    color: product.colors[0], font: FONTS[0], special: "",
+    color: colors[0] || null, font: FONTS[0], special: "",
   });
   const [fileName, setFileName]   = useState(null);
   const [submitted, setSubmitted] = useState(false);
@@ -131,20 +144,31 @@ export default function CustomizeModal({ product, onClose, onCloseAll }) {
         </div>
 
         <div className="form-row">
-          <div className="form-group" style={{ flex: 1 }}>
-            <label className="form-label">Color Theme</label>
-            <div className="color-options">
-              {product.colors.map((c, i) => (
-                <button
-                  key={i}
-                  className={`color-swatch ${form.color === c ? "active" : ""}`}
-                  style={{ background: c === "gold" ? "linear-gradient(135deg,#ffd700,#ff8c00)" : c }}
-                  onClick={() => set("color", c)}
-                  title={c}
-                />
-              ))}
+          {showColors && (
+            <div className="form-group" style={{ flex: 1 }}>
+              <label className="form-label" id="customize-color-label">
+                Select Color{form.color ? <span className="color-selected-name"> — {form.color.name}</span> : null}
+              </label>
+              <div className="color-options" role="radiogroup" aria-labelledby="customize-color-label">
+                {colors.map((color) => {
+                  const active = form.color?.id === color.id;
+                  return (
+                    <button
+                      key={color.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      aria-label={color.name}
+                      className={`color-swatch ${active ? "active" : ""}`}
+                      style={colorSwatchStyle(color.hexCode)}
+                      onClick={() => set("color", color)}
+                      title={color.name}
+                    />
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="form-group" style={{ flex: 1 }}>
             <label className="form-label">Font Style</label>
