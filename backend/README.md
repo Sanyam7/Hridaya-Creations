@@ -45,8 +45,9 @@ Role-Based Access Control, DTO/mapper isolation, global error handling, auditing
 ## Features
 - **Auth**: register, login, JWT access + refresh tokens (DB-backed rotation & revocation), logout,
   forgot/reset/change password, profile management. Strong-password and confirm-password validation.
-- **Catalog**: categories & products with images, tags, pricing, inventory, featured/latest, and
-  dynamic search (keyword, category, price range, tag) with pagination, sorting and filtering.
+- **Catalog**: categories & products with images, tags, colour variants, pricing, inventory,
+  featured/latest, and dynamic search (keyword, category, price range, tag) with pagination,
+  sorting and filtering.
 - **Cart**: add / update / increment / decrement / remove / clear with live stock checks and a full
   price breakdown (subtotal, GST, delivery, total).
 - **Orders**: place from cart (stock decrement + price/address snapshot), cancel (restock), track;

@@ -81,6 +81,7 @@ CREATE TABLE products (
     product_status    VARCHAR(20)   NOT NULL DEFAULT 'ACTIVE',
     featured          BOOLEAN       NOT NULL DEFAULT FALSE,
     customizable      BOOLEAN       NOT NULL DEFAULT FALSE,
+    has_colors        BOOLEAN       NOT NULL DEFAULT FALSE,
     average_rating    NUMERIC(3,2)  DEFAULT 0,
     rating_count      INTEGER       NOT NULL DEFAULT 0,
     CONSTRAINT uk_product_sku   UNIQUE (sku),
@@ -94,6 +95,18 @@ CREATE TABLE product_tags (
     product_id BIGINT      NOT NULL,
     tag        VARCHAR(60),
     CONSTRAINT fk_product_tags_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
+);
+
+-- Colour variants a product is offered in. Empty whenever products.has_colors is FALSE;
+-- display_order preserves the order the admin selected them in.
+CREATE TABLE product_colors (
+    product_id    BIGINT      NOT NULL,
+    display_order INTEGER     NOT NULL,
+    color_id      VARCHAR(40) NOT NULL,
+    color_name    VARCHAR(60) NOT NULL,
+    hex_code      VARCHAR(7)  NOT NULL,
+    PRIMARY KEY (product_id, display_order),
+    CONSTRAINT fk_product_colors_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
 );
 
 CREATE TABLE product_images (

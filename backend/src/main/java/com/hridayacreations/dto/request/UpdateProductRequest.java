@@ -2,6 +2,7 @@ package com.hridayacreations.dto.request;
 
 import com.hridayacreations.entity.enums.ProductStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
@@ -15,6 +16,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -72,4 +74,13 @@ public class UpdateProductRequest {
 
     @Schema(example = "[\"mug\", \"magic\", \"photo\"]")
     private Set<String> tags;
+
+    @Schema(description = "Whether the product is offered in selectable colours. "
+            + "Omitting both this and colors leaves the existing configuration untouched.",
+            example = "true")
+    private Boolean hasColors;
+
+    @Schema(description = "The full replacement colour list — colours left out of it are removed")
+    @Valid
+    private List<ProductColorRequest> colors;
 }

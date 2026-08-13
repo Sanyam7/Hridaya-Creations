@@ -2,6 +2,7 @@ package com.hridayacreations.dto.request;
 
 import com.hridayacreations.entity.enums.ProductStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
@@ -15,6 +16,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -76,4 +78,12 @@ public class CreateProductRequest {
 
     @Schema(example = "[\"mug\", \"magic\", \"photo\", \"birthday\"]")
     private Set<String> tags;
+
+    @Schema(description = "Whether the product is offered in selectable colours; defaults to false",
+            example = "true")
+    private Boolean hasColors;
+
+    @Schema(description = "Required (at least one) when hasColors is true; ignored otherwise")
+    @Valid
+    private List<ProductColorRequest> colors;
 }

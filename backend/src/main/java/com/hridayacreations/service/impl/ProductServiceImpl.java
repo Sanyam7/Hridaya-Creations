@@ -10,6 +10,7 @@ import com.hridayacreations.dto.response.PagedResponse;
 import com.hridayacreations.dto.response.ProductResponse;
 import com.hridayacreations.entity.Category;
 import com.hridayacreations.entity.Product;
+import com.hridayacreations.entity.ProductColor;
 import com.hridayacreations.entity.enums.AuditAction;
 import com.hridayacreations.entity.enums.ProductStatus;
 import com.hridayacreations.exception.BusinessRuleException;
@@ -24,6 +25,7 @@ import com.hridayacreations.repository.WishlistRepository;
 import com.hridayacreations.repository.specification.ProductSpecifications;
 import com.hridayacreations.service.interfaces.AuditLogService;
 import com.hridayacreations.service.interfaces.ProductService;
+import com.hridayacreations.service.support.ProductColorResolver;
 import com.hridayacreations.util.ReferenceGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,7 +35,9 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 
 /**
  * Default product catalog implementation: CRUD, availability, pricing, inventory and dynamic search.
@@ -51,12 +55,15 @@ public class ProductServiceImpl implements ProductService {
     private final ReviewRepository reviewRepository;
     private final ProductMapper productMapper;
     private final AuditLogService auditLogService;
+    private final ProductColorResolver productColorResolver;
 
     @Override
     @Transactional
     public ProductResponse createProduct(CreateProductRequest request) {
         Category category = findCategory(request.getCategoryId());
         String sku = resolveSku(request.getSku(), request.getName());
+        boolean hasColors = Boolean.TRUE.equals(request.getHasColors());
+        List<ProductColor> colors = productColorResolver.resolve(hasColors, request.getColors());
 
         Product product = Product.builder()
                 .name(request.getName().trim())
@@ -71,6 +78,8 @@ public class ProductServiceImpl implements ProductService {
                 .featured(Boolean.TRUE.equals(request.getFeatured()))
                 .customizable(Boolean.TRUE.equals(request.getCustomizable()))
                 .tags(request.getTags() != null ? new HashSet<>(request.getTags()) : new HashSet<>())
+                .hasColors(hasColors)
+                .colors(new ArrayList<>(colors))
                 .build();
 
         Product saved = productRepository.save(product);
@@ -105,6 +114,7 @@ public class ProductServiceImpl implements ProductService {
         if (request.getTags() != null) {
             product.getTags().addAll(request.getTags());
         }
+        applyColorUpdate(product, request);
 
         Product saved = productRepository.save(product);
         auditLogService.log(AuditAction.PRODUCT_UPDATED, "Product", String.valueOf(saved.getId()),
@@ -194,6 +204,22 @@ public class ProductServiceImpl implements ProductService {
     }
 
     /* ----------------------------------------------------------------- */
+
+    /**
+     * Applies the submitted colour configuration, replacing the stored list wholesale so colours the
+     * admin removed are actually deleted. A request that mentions neither {@code hasColors} nor
+     * {@code colors} leaves the existing configuration untouched, which keeps older API clients
+     * (and any caller that predates this feature) working unchanged.
+     */
+    private void applyColorUpdate(Product product, UpdateProductRequest request) {
+        if (request.getHasColors() == null && request.getColors() == null) {
+            return;
+        }
+        boolean hasColors = request.getHasColors() != null
+                ? request.getHasColors()
+                : !request.getColors().isEmpty();
+        product.replaceColors(hasColors, productColorResolver.resolve(hasColors, request.getColors()));
+    }
 
     private Product findProduct(Long id) {
         return productRepository.findById(id)

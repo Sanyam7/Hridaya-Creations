@@ -1,5 +1,6 @@
 package com.hridayacreations.config;
 
+import com.hridayacreations.dto.request.ProductColorRequest;
 import com.hridayacreations.entity.Category;
 import com.hridayacreations.entity.Product;
 import com.hridayacreations.entity.Role;
@@ -11,6 +12,7 @@ import com.hridayacreations.repository.CategoryRepository;
 import com.hridayacreations.repository.ProductRepository;
 import com.hridayacreations.repository.RoleRepository;
 import com.hridayacreations.repository.UserRepository;
+import com.hridayacreations.service.support.ProductColorResolver;
 import com.hridayacreations.util.ReferenceGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +23,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
@@ -40,6 +43,7 @@ public class DataSeeder implements CommandLineRunner {
     private final ProductRepository productRepository;
     private final PasswordEncoder passwordEncoder;
     private final AppProperties appProperties;
+    private final ProductColorResolver productColorResolver;
 
     @Override
     @Transactional
@@ -110,10 +114,10 @@ public class DataSeeder implements CommandLineRunner {
                         "A classic ceramic mug printed with your favourite photo and a custom message.",
                         "Custom photo ceramic mug", "299.00", "399.00", 120, true, true,
                         Set.of("mug", "photo", "ceramic", "birthday")),
-                product("Magic Heat Reveal Mug", mugs,
+                colored(product("Magic Heat Reveal Mug", mugs,
                         "A heat-sensitive magic mug that reveals your photo when filled with a hot beverage.",
                         "Heat-reveal magic mug", "449.00", "599.00", 80, true, true,
-                        Set.of("mug", "magic", "photo")),
+                        Set.of("mug", "magic", "photo")), "black", "white", "red"),
                 product("LED Personalized Photo Frame", frames,
                         "An elegant LED-lit frame customised with your photo and name.",
                         "LED-lit personalized frame", "899.00", "1199.00", 50, true, true,
@@ -122,14 +126,14 @@ public class DataSeeder implements CommandLineRunner {
                         "A premium wooden frame laser-engraved with your photo and a message.",
                         "Laser-engraved wooden frame", "749.00", "999.00", 60, false, true,
                         Set.of("frame", "wood", "engraved")),
-                product("Custom Printed Cushion", cushions,
+                colored(product("Custom Printed Cushion", cushions,
                         "A soft cushion printed with your photo and message — perfect for gifting.",
                         "Custom photo cushion", "499.00", "699.00", 100, true, true,
-                        Set.of("cushion", "photo", "home")),
-                product("Personalized Name Keychain", keychains,
+                        Set.of("cushion", "photo", "home")), "white", "beige", "grey", "pink"),
+                colored(product("Personalized Name Keychain", keychains,
                         "A durable metal keychain engraved with a name of your choice.",
                         "Engraved name keychain", "149.00", "249.00", 200, false, true,
-                        Set.of("keychain", "name", "engraved")),
+                        Set.of("keychain", "name", "engraved")), "black", "red", "blue"),
                 product("Anniversary Photo Collage Frame", anniversary,
                         "A multi-photo collage frame to celebrate years of togetherness.",
                         "Multi-photo collage frame", "1099.00", "1499.00", 40, true, true,
@@ -169,5 +173,17 @@ public class DataSeeder implements CommandLineRunner {
                 .averageRating(BigDecimal.ZERO)
                 .ratingCount(0)
                 .build();
+    }
+
+    /**
+     * Enables colour variants on a seeded product using ids from the predefined palette, routed
+     * through {@link ProductColorResolver} so the sample data is built exactly like admin input.
+     */
+    private Product colored(Product product, String... colorIds) {
+        List<ProductColorRequest> requested = Arrays.stream(colorIds)
+                .map(id -> ProductColorRequest.builder().id(id).build())
+                .toList();
+        product.replaceColors(true, productColorResolver.resolve(true, requested));
+        return product;
     }
 }

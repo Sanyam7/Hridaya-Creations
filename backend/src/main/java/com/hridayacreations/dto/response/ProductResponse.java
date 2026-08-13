@@ -41,6 +41,10 @@ public class ProductResponse {
     private boolean featured;
     private boolean customizable;
     private Set<String> tags;
+    /** Always present: false for products without colour variants. */
+    private boolean hasColors;
+    /** Always present: empty for products without colour variants. */
+    private List<ProductColorResponse> colors;
     private List<ProductImageResponse> images;
     private String primaryImageUrl;
     private BigDecimal averageRating;

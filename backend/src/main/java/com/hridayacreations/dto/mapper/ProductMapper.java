@@ -1,8 +1,10 @@
 package com.hridayacreations.dto.mapper;
 
+import com.hridayacreations.dto.response.ProductColorResponse;
 import com.hridayacreations.dto.response.ProductImageResponse;
 import com.hridayacreations.dto.response.ProductResponse;
 import com.hridayacreations.entity.Product;
+import com.hridayacreations.entity.ProductColor;
 import com.hridayacreations.entity.ProductImage;
 import org.mapstruct.AfterMapping;
 import org.mapstruct.Mapper;
@@ -26,6 +28,10 @@ public interface ProductMapper {
     ProductResponse toResponse(Product product);
 
     ProductImageResponse toImageResponse(ProductImage image);
+
+    /** {@code colorId} is the entity-side name for what the API exposes as {@code id}. */
+    @Mapping(target = "id", source = "colorId")
+    ProductColorResponse toColorResponse(ProductColor color);
 
     /**
      * Derives stock availability and the primary image URL after the base mapping completes.

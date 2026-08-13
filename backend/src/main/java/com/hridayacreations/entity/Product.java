@@ -15,6 +15,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
+import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.Builder;
@@ -98,6 +99,29 @@ public class Product extends BaseEntity {
     @Column(name = "tag", length = 60)
     private Set<String> tags = new HashSet<>();
 
+    /**
+     * Whether the product is offered in selectable colour variants. Declared with an explicit
+     * {@code default false} so the column can be added to a populated table (existing products
+     * are backfilled as "no colours").
+     */
+    @Builder.Default
+    @Column(name = "has_colors", nullable = false, columnDefinition = "boolean default false")
+    private boolean hasColors = false;
+
+    /**
+     * The colours this product is available in — empty whenever {@link #hasColors} is false.
+     * {@code @OrderColumn} preserves the order the admin picked them in.
+     */
+    @Builder.Default
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(
+            name = "product_colors",
+            joinColumns = @JoinColumn(name = "product_id",
+                    foreignKey = @ForeignKey(name = "fk_product_colors_product"))
+    )
+    @OrderColumn(name = "display_order")
+    private List<ProductColor> colors = new ArrayList<>();
+
     @Builder.Default
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @OrderBy("displayOrder ASC, id ASC")
@@ -125,5 +149,18 @@ public class Product extends BaseEntity {
 
     public boolean isInStock() {
         return stockQuantity != null && stockQuantity > 0;
+    }
+
+    /**
+     * Swaps in a new colour selection, mutating the collection in place so JPA diffs it correctly
+     * (removed colours are deleted rather than appended to). Disabling colours always clears them,
+     * which keeps the {@code !hasColors -> colors.isEmpty()} invariant true at the entity level.
+     */
+    public void replaceColors(boolean enabled, List<ProductColor> newColors) {
+        this.hasColors = enabled;
+        this.colors.clear();
+        if (enabled && newColors != null) {
+            this.colors.addAll(newColors);
+        }
     }
 }
