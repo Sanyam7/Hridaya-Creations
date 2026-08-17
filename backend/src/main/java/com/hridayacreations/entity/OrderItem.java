@@ -1,18 +1,24 @@
 package com.hridayacreations.entity;
 
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.ForeignKey;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.MapKeyColumn;
 import jakarta.persistence.Table;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * A line item within an {@link Order}. Product name, SKU and price are snapshotted at purchase time.
@@ -52,4 +58,19 @@ public class OrderItem extends BaseEntity {
 
     @Column(name = "image_url", length = 500)
     private String imageUrl;
+
+    /**
+     * The personalisation as it was at purchase time. Snapshotted like name/SKU/price so the order
+     * still reads correctly after the product's customization configuration changes.
+     */
+    @Builder.Default
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(
+            name = "order_item_customization",
+            joinColumns = @JoinColumn(name = "order_item_id",
+                    foreignKey = @ForeignKey(name = "fk_order_item_customization_item"))
+    )
+    @MapKeyColumn(name = "option_key", length = 60)
+    @Column(name = "option_value", length = 1000)
+    private Map<String, String> customization = new LinkedHashMap<>();
 }

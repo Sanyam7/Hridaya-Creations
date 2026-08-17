@@ -19,12 +19,15 @@ import com.hridayacreations.repository.UserRepository;
 import com.hridayacreations.security.SecurityUtils;
 import com.hridayacreations.service.interfaces.CartService;
 import com.hridayacreations.service.support.OrderPricingCalculator;
+import com.hridayacreations.service.support.ProductCustomizationResolver;
+import com.hridayacreations.util.CustomizationSignature;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Default cart implementation: maintains one cart per user, validates availability/stock on every
@@ -39,6 +42,7 @@ public class CartServiceImpl implements CartService {
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
     private final OrderPricingCalculator pricingCalculator;
+    private final ProductCustomizationResolver customizationResolver;
 
     @Override
     @Transactional
@@ -52,8 +56,17 @@ public class CartServiceImpl implements CartService {
         Cart cart = getOrCreateCart(SecurityUtils.getCurrentUserId());
         Product product = getAvailableProduct(request.getProductId());
 
+        // Never trust the submitted customization: it is checked against the product's stored
+        // configuration, so disabled options, bad values and customization on a readymade
+        // product are all rejected here regardless of what the client sent.
+        Map<String, String> customization =
+                customizationResolver.validateSubmission(product, request.getCustomization());
+        String signature = CustomizationSignature.of(customization);
+
+        // Same product AND same personalisation means the same line; anything else is a new one.
         CartItem existing = cart.getItems().stream()
-                .filter(item -> item.getProduct().getId().equals(product.getId()))
+                .filter(item -> item.getProduct().getId().equals(product.getId())
+                        && signature.equals(item.getCustomizationSignature()))
                 .findFirst()
                 .orElse(null);
 
@@ -69,6 +82,7 @@ public class CartServiceImpl implements CartService {
                     .quantity(request.getQuantity())
                     .unitPrice(product.getSellingPrice())
                     .build();
+            item.applyCustomization(customization);
             cart.addItem(item);
         }
         cartRepository.save(cart);
@@ -203,6 +217,8 @@ public class CartServiceImpl implements CartService {
                 .lineTotal(item.getLineTotal())
                 .inStock(product.isInStock())
                 .availableStock(product.getStockQuantity())
+                .productType(product.getProductType())
+                .customization(Map.copyOf(item.getCustomization()))
                 .build();
     }
 

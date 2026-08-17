@@ -1,6 +1,7 @@
 package com.hridayacreations.entity;
 
 import com.hridayacreations.entity.enums.ProductStatus;
+import com.hridayacreations.entity.enums.ProductType;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
@@ -85,9 +86,30 @@ public class Product extends BaseEntity {
     @Column(name = "featured", nullable = false)
     private boolean featured = false;
 
+    /**
+     * How the product is sold. Single source of truth — a product is either CUSTOMIZABLE or
+     * READYMADE, never both, so no combination of flags can express an invalid state. Declared with
+     * an explicit default so the column can be added to a populated table.
+     */
     @Builder.Default
-    @Column(name = "customizable", nullable = false)
-    private boolean customizable = false;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "product_type", nullable = false, length = 20,
+            columnDefinition = "varchar(20) default 'READYMADE'")
+    private ProductType productType = ProductType.READYMADE;
+
+    /**
+     * The customization options enabled for this product — always empty for a READYMADE product.
+     * {@code @OrderColumn} preserves the order the customer sees the fields in.
+     */
+    @Builder.Default
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(
+            name = "product_customization_options",
+            joinColumns = @JoinColumn(name = "product_id",
+                    foreignKey = @ForeignKey(name = "fk_product_cust_options_product"))
+    )
+    @OrderColumn(name = "display_order")
+    private List<ProductCustomizationOption> customizationOptions = new ArrayList<>();
 
     @Builder.Default
     @ElementCollection(fetch = FetchType.LAZY)
@@ -162,5 +184,23 @@ public class Product extends BaseEntity {
         if (enabled && newColors != null) {
             this.colors.addAll(newColors);
         }
+    }
+
+    /**
+     * Swaps in a new customization configuration, mutating the collection in place so options the
+     * admin switched off are deleted rather than left behind. A READYMADE product always ends up
+     * with no options, keeping the {@code READYMADE -> customizationOptions.isEmpty()} invariant
+     * true at the entity level however the caller got here.
+     */
+    public void replaceCustomization(ProductType type, List<ProductCustomizationOption> options) {
+        this.productType = type;
+        this.customizationOptions.clear();
+        if (type == ProductType.CUSTOMIZABLE && options != null) {
+            this.customizationOptions.addAll(options);
+        }
+    }
+
+    public boolean isCustomizable() {
+        return productType == ProductType.CUSTOMIZABLE;
     }
 }

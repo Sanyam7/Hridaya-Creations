@@ -3,11 +3,14 @@ package com.hridayacreations.service;
 import com.hridayacreations.dto.mapper.ProductMapper;
 import com.hridayacreations.dto.request.CreateProductRequest;
 import com.hridayacreations.dto.request.ProductColorRequest;
+import com.hridayacreations.dto.request.ProductCustomizationOptionRequest;
 import com.hridayacreations.dto.request.UpdateProductRequest;
 import com.hridayacreations.dto.response.ProductResponse;
 import com.hridayacreations.entity.Category;
 import com.hridayacreations.entity.Product;
 import com.hridayacreations.entity.ProductColor;
+import com.hridayacreations.entity.ProductCustomizationOption;
+import com.hridayacreations.entity.enums.ProductType;
 import com.hridayacreations.exception.BadRequestException;
 import com.hridayacreations.exception.BusinessRuleException;
 import com.hridayacreations.exception.DuplicateResourceException;
@@ -21,6 +24,7 @@ import com.hridayacreations.repository.WishlistRepository;
 import com.hridayacreations.service.impl.ProductServiceImpl;
 import com.hridayacreations.service.interfaces.AuditLogService;
 import com.hridayacreations.service.support.ProductColorResolver;
+import com.hridayacreations.service.support.ProductCustomizationResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -60,7 +64,8 @@ class ProductServiceImplTest {
         // real — ProductColorResolver is stateless and has no collaborators worth faking.
         productService = new ProductServiceImpl(productRepository, categoryRepository,
                 orderItemRepository, cartItemRepository, wishlistRepository, reviewRepository,
-                productMapper, auditLogService, new ProductColorResolver());
+                productMapper, auditLogService, new ProductColorResolver(),
+                new ProductCustomizationResolver());
     }
 
     private CreateProductRequest validRequest() {
@@ -84,6 +89,11 @@ class ProductServiceImplTest {
 
     private ProductColorRequest color(String id, String name, String hexCode) {
         return ProductColorRequest.builder().id(id).name(name).hexCode(hexCode).build();
+    }
+
+    private ProductCustomizationOptionRequest option(String key, String label, boolean required) {
+        return ProductCustomizationOptionRequest.builder()
+                .key(key).label(label).required(required).build();
     }
 
     /** An already-persisted product in category 1, ready for update tests. */
@@ -286,6 +296,144 @@ class ProductServiceImplTest {
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("at least one colour");
         verify(productRepository, never()).save(any());
+    }
+
+    /* -------------------------- product type --------------------------- */
+
+    @Test
+    void createProduct_defaultsToReadymadeWithNoOptions() {
+        stubCreate();
+
+        productService.createProduct(validRequest());
+
+        Product persisted = capturedProduct();
+        assertThat(persisted.getProductType()).isEqualTo(ProductType.READYMADE);
+        assertThat(persisted.getCustomizationOptions()).isEmpty();
+        assertThat(persisted.isCustomizable()).isFalse();
+    }
+
+    @Test
+    void createProduct_customizableWithNoOptions_throws() {
+        CreateProductRequest request = validRequest();
+        request.setProductType(ProductType.CUSTOMIZABLE);
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(Category.builder().build()));
+
+        assertThatThrownBy(() -> productService.createProduct(request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("at least one customization option");
+        verify(productRepository, never()).save(any());
+    }
+
+    @Test
+    void createProduct_customizable_storesOptionsInCatalogOrder() {
+        CreateProductRequest request = validRequest();
+        request.setProductType(ProductType.CUSTOMIZABLE);
+        // Submitted out of order and with a duplicate; both are normalized away.
+        request.setCustomizationOptions(List.of(
+                option("message", null, false),
+                option("customerName", "Enter Your Name", true),
+                option("customerName", null, false)));
+        stubCreate();
+
+        productService.createProduct(request);
+
+        Product persisted = capturedProduct();
+        assertThat(persisted.getProductType()).isEqualTo(ProductType.CUSTOMIZABLE);
+        assertThat(persisted.getCustomizationOptions())
+                .extracting(ProductCustomizationOption::getOptionKey)
+                .containsExactly("customerName", "message");
+        assertThat(persisted.getCustomizationOptions().get(0).getLabel()).isEqualTo("Enter Your Name");
+        assertThat(persisted.getCustomizationOptions().get(0).isRequired()).isTrue();
+        // Label falls back to the catalog default when the admin does not override it.
+        assertThat(persisted.getCustomizationOptions().get(1).getLabel()).isEqualTo("Personal Message");
+    }
+
+    @Test
+    void createProduct_unknownCustomizationOption_throws() {
+        CreateProductRequest request = validRequest();
+        request.setProductType(ProductType.CUSTOMIZABLE);
+        request.setCustomizationOptions(List.of(option("engravedHologram", null, true)));
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(Category.builder().build()));
+
+        assertThatThrownBy(() -> productService.createProduct(request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("not a supported customization option");
+    }
+
+    @Test
+    void createProduct_colourOptionWithoutColours_throws() {
+        CreateProductRequest request = validRequest();
+        request.setProductType(ProductType.CUSTOMIZABLE);
+        request.setHasColors(false);
+        request.setCustomizationOptions(List.of(option("color", null, true)));
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(Category.builder().build()));
+
+        assertThatThrownBy(() -> productService.createProduct(request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Enable colour options");
+    }
+
+    @Test
+    void createProduct_legacyCustomizableFlagStillSelectsTheType() {
+        CreateProductRequest request = validRequest();
+        request.setCustomizable(true);   // a client that predates productType
+        request.setCustomizationOptions(List.of(option("customerName", null, true)));
+        stubCreate();
+
+        productService.createProduct(request);
+
+        assertThat(capturedProduct().getProductType()).isEqualTo(ProductType.CUSTOMIZABLE);
+    }
+
+    @Test
+    void updateProduct_switchingToReadymade_clearsTheConfiguration() {
+        Product product = existingProduct();
+        product.replaceCustomization(ProductType.CUSTOMIZABLE, List.of(
+                ProductCustomizationOption.builder()
+                        .optionKey("customerName").label("Name").required(true).build()));
+        stubUpdate(product);
+
+        UpdateProductRequest request = validUpdateRequest();
+        request.setProductType(ProductType.READYMADE);
+        request.setCustomizationOptions(List.of());
+        productService.updateProduct(5L, request);
+
+        assertThat(product.getProductType()).isEqualTo(ProductType.READYMADE);
+        assertThat(product.getCustomizationOptions()).isEmpty();
+    }
+
+    @Test
+    void updateProduct_replacesOptions_soDisabledOnesAreDropped() {
+        Product product = existingProduct();
+        product.replaceCustomization(ProductType.CUSTOMIZABLE, List.of(
+                ProductCustomizationOption.builder().optionKey("customerName").label("Name").required(true).build(),
+                ProductCustomizationOption.builder().optionKey("photo").label("Photo").required(false).build()));
+        stubUpdate(product);
+
+        UpdateProductRequest request = validUpdateRequest();
+        request.setProductType(ProductType.CUSTOMIZABLE);
+        request.setCustomizationOptions(List.of(
+                option("customerName", null, true), option("message", null, false)));
+        productService.updateProduct(5L, request);
+
+        assertThat(product.getCustomizationOptions())
+                .extracting(ProductCustomizationOption::getOptionKey)
+                .containsExactly("customerName", "message");
+    }
+
+    @Test
+    void updateProduct_withoutTypeOrOptions_leavesTheConfigurationUntouched() {
+        Product product = existingProduct();
+        product.replaceCustomization(ProductType.CUSTOMIZABLE, List.of(
+                ProductCustomizationOption.builder().optionKey("photo").label("Photo").required(true).build()));
+        stubUpdate(product);
+
+        // A caller that predates the feature sends neither field.
+        productService.updateProduct(5L, validUpdateRequest());
+
+        assertThat(product.getProductType()).isEqualTo(ProductType.CUSTOMIZABLE);
+        assertThat(product.getCustomizationOptions())
+                .extracting(ProductCustomizationOption::getOptionKey).containsExactly("photo");
     }
 
     /* ------------------------------------------------------------------- */

@@ -11,8 +11,10 @@ import com.hridayacreations.dto.response.ProductResponse;
 import com.hridayacreations.entity.Category;
 import com.hridayacreations.entity.Product;
 import com.hridayacreations.entity.ProductColor;
+import com.hridayacreations.entity.ProductCustomizationOption;
 import com.hridayacreations.entity.enums.AuditAction;
 import com.hridayacreations.entity.enums.ProductStatus;
+import com.hridayacreations.entity.enums.ProductType;
 import com.hridayacreations.exception.BusinessRuleException;
 import com.hridayacreations.exception.DuplicateResourceException;
 import com.hridayacreations.exception.ResourceNotFoundException;
@@ -26,6 +28,7 @@ import com.hridayacreations.repository.specification.ProductSpecifications;
 import com.hridayacreations.service.interfaces.AuditLogService;
 import com.hridayacreations.service.interfaces.ProductService;
 import com.hridayacreations.service.support.ProductColorResolver;
+import com.hridayacreations.service.support.ProductCustomizationResolver;
 import com.hridayacreations.util.ReferenceGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -56,6 +59,7 @@ public class ProductServiceImpl implements ProductService {
     private final ProductMapper productMapper;
     private final AuditLogService auditLogService;
     private final ProductColorResolver productColorResolver;
+    private final ProductCustomizationResolver productCustomizationResolver;
 
     @Override
     @Transactional
@@ -64,6 +68,10 @@ public class ProductServiceImpl implements ProductService {
         String sku = resolveSku(request.getSku(), request.getName());
         boolean hasColors = Boolean.TRUE.equals(request.getHasColors());
         List<ProductColor> colors = productColorResolver.resolve(hasColors, request.getColors());
+        ProductType productType = resolveProductType(request.getProductType(), request.getCustomizable(),
+                ProductType.READYMADE);
+        List<ProductCustomizationOption> customizationOptions = productCustomizationResolver
+                .resolveConfiguration(productType, request.getCustomizationOptions(), hasColors);
 
         Product product = Product.builder()
                 .name(request.getName().trim())
@@ -76,7 +84,8 @@ public class ProductServiceImpl implements ProductService {
                 .sku(sku)
                 .productStatus(resolveInitialStatus(request.getProductStatus(), request.getStockQuantity()))
                 .featured(Boolean.TRUE.equals(request.getFeatured()))
-                .customizable(Boolean.TRUE.equals(request.getCustomizable()))
+                .productType(productType)
+                .customizationOptions(new ArrayList<>(customizationOptions))
                 .tags(request.getTags() != null ? new HashSet<>(request.getTags()) : new HashSet<>())
                 .hasColors(hasColors)
                 .colors(new ArrayList<>(colors))
@@ -107,14 +116,12 @@ public class ProductServiceImpl implements ProductService {
         if (request.getFeatured() != null) {
             product.setFeatured(request.getFeatured());
         }
-        if (request.getCustomizable() != null) {
-            product.setCustomizable(request.getCustomizable());
-        }
         product.getTags().clear();
         if (request.getTags() != null) {
             product.getTags().addAll(request.getTags());
         }
         applyColorUpdate(product, request);
+        applyCustomizationUpdate(product, request);
 
         Product saved = productRepository.save(product);
         auditLogService.log(AuditAction.PRODUCT_UPDATED, "Product", String.valueOf(saved.getId()),
@@ -219,6 +226,44 @@ public class ProductServiceImpl implements ProductService {
                 ? request.getHasColors()
                 : !request.getColors().isEmpty();
         product.replaceColors(hasColors, productColorResolver.resolve(hasColors, request.getColors()));
+    }
+
+    /**
+     * Applies the submitted product type and customization configuration, replacing the stored
+     * options wholesale so options the admin switched off are actually removed. Runs after
+     * {@code applyColorUpdate} so the colour customization option is validated against the
+     * product's new colour setting rather than its old one.
+     *
+     * <p>A request that mentions neither the type nor the options leaves the configuration
+     * untouched, keeping callers that predate this feature working. When only the options are
+     * sent, the product keeps its current type — switching a product between customizable and
+     * readymade always has to be explicit.
+     */
+    private void applyCustomizationUpdate(Product product, UpdateProductRequest request) {
+        ProductType requestedType =
+                resolveProductType(request.getProductType(), request.getCustomizable(), null);
+        if (requestedType == null && request.getCustomizationOptions() == null) {
+            return;
+        }
+        ProductType type = requestedType != null ? requestedType : product.getProductType();
+        product.replaceCustomization(type, productCustomizationResolver.resolveConfiguration(
+                type, request.getCustomizationOptions(), product.isHasColors()));
+    }
+
+    /**
+     * Resolves the product type from the request, preferring the explicit {@code productType} and
+     * falling back to the deprecated {@code customizable} flag so older clients still work. The two
+     * can never disagree in storage because only one value is persisted.
+     */
+    private ProductType resolveProductType(ProductType requested, Boolean legacyCustomizable,
+                                           ProductType fallback) {
+        if (requested != null) {
+            return requested;
+        }
+        if (legacyCustomizable != null) {
+            return legacyCustomizable ? ProductType.CUSTOMIZABLE : ProductType.READYMADE;
+        }
+        return fallback;
     }
 
     private Product findProduct(Long id) {

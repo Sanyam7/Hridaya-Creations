@@ -1,6 +1,7 @@
 package com.hridayacreations.dto.response;
 
 import com.hridayacreations.entity.enums.ProductStatus;
+import com.hridayacreations.entity.enums.ProductType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -39,6 +40,11 @@ public class ProductResponse {
     private String sku;
     private ProductStatus productStatus;
     private boolean featured;
+    /** CUSTOMIZABLE or READYMADE — always present, and the field clients should branch on. */
+    private ProductType productType;
+    /** Always present: empty for READYMADE products. Ordered as the customer should see them. */
+    private List<ProductCustomizationOptionResponse> customizationOptions;
+    /** Derived from {@link #productType}; retained so older clients keep working. */
     private boolean customizable;
     private Set<String> tags;
     /** Always present: false for products without colour variants. */

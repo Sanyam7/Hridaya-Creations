@@ -1,18 +1,23 @@
 package com.hridayacreations.config;
 
 import com.hridayacreations.dto.request.ProductColorRequest;
+import com.hridayacreations.dto.request.ProductCustomizationOptionRequest;
 import com.hridayacreations.entity.Category;
 import com.hridayacreations.entity.Product;
+import com.hridayacreations.entity.ProductCustomizationOption;
 import com.hridayacreations.entity.Role;
 import com.hridayacreations.entity.User;
 import com.hridayacreations.entity.enums.CategoryStatus;
 import com.hridayacreations.entity.enums.ProductStatus;
+import com.hridayacreations.entity.enums.ProductType;
 import com.hridayacreations.entity.enums.RoleName;
 import com.hridayacreations.repository.CategoryRepository;
 import com.hridayacreations.repository.ProductRepository;
 import com.hridayacreations.repository.RoleRepository;
 import com.hridayacreations.repository.UserRepository;
+import com.hridayacreations.service.support.CustomizationCatalog;
 import com.hridayacreations.service.support.ProductColorResolver;
+import com.hridayacreations.service.support.ProductCustomizationResolver;
 import com.hridayacreations.util.ReferenceGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +49,7 @@ public class DataSeeder implements CommandLineRunner {
     private final PasswordEncoder passwordEncoder;
     private final AppProperties appProperties;
     private final ProductColorResolver productColorResolver;
+    private final ProductCustomizationResolver productCustomizationResolver;
 
     @Override
     @Transactional
@@ -157,6 +163,7 @@ public class DataSeeder implements CommandLineRunner {
     private Product product(String name, Category category, String description, String shortDescription,
                             String sellingPrice, String originalPrice, int stock, boolean featured,
                             boolean customizable, Set<String> tags) {
+        ProductType type = customizable ? ProductType.CUSTOMIZABLE : ProductType.READYMADE;
         return Product.builder()
                 .name(name)
                 .category(category)
@@ -168,11 +175,32 @@ public class DataSeeder implements CommandLineRunner {
                 .sku(ReferenceGenerator.generateSku(name))
                 .productStatus(ProductStatus.ACTIVE)
                 .featured(featured)
-                .customizable(customizable)
+                .productType(type)
+                .customizationOptions(defaultCustomizationOptions(type))
                 .tags(new java.util.HashSet<>(tags))
                 .averageRating(BigDecimal.ZERO)
                 .ratingCount(0)
                 .build();
+    }
+
+    /**
+     * A sensible starting configuration for seeded customizable products: a required name plus an
+     * optional photo and message. Built through {@link ProductCustomizationResolver} so the sample
+     * data goes through exactly the same validation as admin input.
+     */
+    private List<ProductCustomizationOption> defaultCustomizationOptions(ProductType type) {
+        if (type != ProductType.CUSTOMIZABLE) {
+            return new java.util.ArrayList<>();
+        }
+        List<ProductCustomizationOptionRequest> requested = List.of(
+                ProductCustomizationOptionRequest.builder()
+                        .key(CustomizationCatalog.KEY_CUSTOMER_NAME).required(true).build(),
+                ProductCustomizationOptionRequest.builder()
+                        .key(CustomizationCatalog.KEY_PHOTO).required(false).build(),
+                ProductCustomizationOptionRequest.builder()
+                        .key(CustomizationCatalog.KEY_MESSAGE).required(false).build());
+        return new java.util.ArrayList<>(
+                productCustomizationResolver.resolveConfiguration(type, requested, false));
     }
 
     /**

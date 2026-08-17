@@ -38,6 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 
 /**
  * Default order implementation: atomic checkout from the cart with stock decrement and snapshotting,
@@ -106,6 +107,9 @@ public class OrderServiceImpl implements OrderService {
                     .quantity(cartItem.getQuantity())
                     .lineTotal(lineTotal)
                     .imageUrl(primaryImageUrl(product))
+                    // Snapshotted alongside name/SKU/price so the order still reads correctly
+                    // if the product's customization configuration changes later.
+                    .customization(new LinkedHashMap<>(cartItem.getCustomization()))
                     .build();
             order.addItem(orderItem);
 

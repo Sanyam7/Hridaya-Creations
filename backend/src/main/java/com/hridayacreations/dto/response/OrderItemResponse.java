@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.util.Map;
 
 /**
  * A purchased line item snapshot within an order.
@@ -28,4 +29,6 @@ public class OrderItemResponse {
     private BigDecimal unitPrice;
     private Integer quantity;
     private BigDecimal lineTotal;
+    /** The personalisation as purchased; empty for readymade lines. */
+    private Map<String, String> customization;
 }

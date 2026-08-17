@@ -1,11 +1,14 @@
 package com.hridayacreations.dto.mapper;
 
 import com.hridayacreations.dto.response.ProductColorResponse;
+import com.hridayacreations.dto.response.ProductCustomizationOptionResponse;
 import com.hridayacreations.dto.response.ProductImageResponse;
 import com.hridayacreations.dto.response.ProductResponse;
 import com.hridayacreations.entity.Product;
 import com.hridayacreations.entity.ProductColor;
+import com.hridayacreations.entity.ProductCustomizationOption;
 import com.hridayacreations.entity.ProductImage;
+import com.hridayacreations.service.support.CustomizationCatalog;
 import org.mapstruct.AfterMapping;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -32,6 +35,31 @@ public interface ProductMapper {
     /** {@code colorId} is the entity-side name for what the API exposes as {@code id}. */
     @Mapping(target = "id", source = "colorId")
     ProductColorResponse toColorResponse(ProductColor color);
+
+    /**
+     * Combines the per-product configuration (label, requiredness) with the catalog definition
+     * (input kind, limits, choices) so the storefront receives one self-describing field spec and
+     * never has to know the option list itself.
+     */
+    default ProductCustomizationOptionResponse toCustomizationResponse(ProductCustomizationOption option) {
+        if (option == null) {
+            return null;
+        }
+        return CustomizationCatalog.find(option.getOptionKey())
+                .map(definition -> ProductCustomizationOptionResponse.builder()
+                        .key(option.getOptionKey())
+                        .label(option.getLabel())
+                        .required(option.isRequired())
+                        .fieldType(definition.fieldType())
+                        .maxLength(definition.maxLength())
+                        .choices(definition.choices())
+                        .displayOrder(definition.displayOrder())
+                        .build())
+                // A key that is no longer in the catalog (an option retired after products used it)
+                // is skipped rather than returned half-built, so the storefront never renders a
+                // field it has no rules for.
+                .orElse(null);
+    }
 
     /**
      * Derives stock availability and the primary image URL after the base mapping completes.

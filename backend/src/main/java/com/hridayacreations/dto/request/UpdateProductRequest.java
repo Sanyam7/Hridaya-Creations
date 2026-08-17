@@ -1,6 +1,7 @@
 package com.hridayacreations.dto.request;
 
 import com.hridayacreations.entity.enums.ProductStatus;
+import com.hridayacreations.entity.enums.ProductType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
@@ -69,7 +70,18 @@ public class UpdateProductRequest {
     @Schema(example = "true")
     private Boolean featured;
 
-    @Schema(example = "true")
+    @Schema(description = "CUSTOMIZABLE or READYMADE. Omitting both this and customizationOptions "
+            + "leaves the existing configuration untouched.", example = "CUSTOMIZABLE")
+    private ProductType productType;
+
+    @Schema(description = "The full replacement option list — options left out of it are disabled")
+    @Valid
+    private List<ProductCustomizationOptionRequest> customizationOptions;
+
+    @Deprecated(since = "productType")
+    @Schema(deprecated = true,
+            description = "Legacy flag kept for older clients; productType wins when both are sent",
+            example = "true")
     private Boolean customizable;
 
     @Schema(example = "[\"mug\", \"magic\", \"photo\"]")

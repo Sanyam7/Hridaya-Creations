@@ -14,11 +14,11 @@ import com.hridayacreations.repository.UserRepository;
 import com.hridayacreations.security.services.UserPrincipal;
 import com.hridayacreations.service.impl.CartServiceImpl;
 import com.hridayacreations.service.support.OrderPricingCalculator;
+import com.hridayacreations.service.support.ProductCustomizationResolver;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -44,11 +44,15 @@ class CartServiceImplTest {
     @Mock private UserRepository userRepository;
     @Mock private OrderPricingCalculator pricingCalculator;
 
-    @InjectMocks
     private CartServiceImpl cartService;
 
     @BeforeEach
     void authenticate() {
+        // Built explicitly rather than via @InjectMocks so the real customization rules run —
+        // @InjectMocks would silently pass null for a collaborator it has no mock for.
+        cartService = new CartServiceImpl(cartRepository, cartItemRepository, productRepository,
+                userRepository, pricingCalculator, new ProductCustomizationResolver());
+
         UserPrincipal principal = new UserPrincipal(1L, "u@example.com", "U E", "pw", true, true,
                 List.of(new SimpleGrantedAuthority("ROLE_USER")));
         SecurityContextHolder.getContext().setAuthentication(
