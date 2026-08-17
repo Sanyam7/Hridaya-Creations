@@ -4,8 +4,10 @@ import com.hridayacreations.dto.request.AddToCartRequest;
 import com.hridayacreations.dto.request.UpdateCartItemRequest;
 import com.hridayacreations.dto.response.CartItemResponse;
 import com.hridayacreations.dto.response.CartResponse;
+import com.hridayacreations.dto.response.CustomizationValueResponse;
 import com.hridayacreations.entity.Cart;
 import com.hridayacreations.entity.CartItem;
+import com.hridayacreations.entity.CustomizationEntry;
 import com.hridayacreations.entity.Product;
 import com.hridayacreations.entity.ProductImage;
 import com.hridayacreations.entity.User;
@@ -21,13 +23,13 @@ import com.hridayacreations.service.interfaces.CartService;
 import com.hridayacreations.service.support.OrderPricingCalculator;
 import com.hridayacreations.service.support.ProductCustomizationResolver;
 import com.hridayacreations.util.CustomizationSignature;
+import com.hridayacreations.util.CustomizationValues;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Default cart implementation: maintains one cart per user, validates availability/stock on every
@@ -57,11 +59,11 @@ public class CartServiceImpl implements CartService {
         Product product = getAvailableProduct(request.getProductId());
 
         // Never trust the submitted customization: it is checked against the product's stored
-        // configuration, so disabled options, bad values and customization on a readymade
+        // configuration, so unconfigured fields, bad values and customization on a readymade
         // product are all rejected here regardless of what the client sent.
-        Map<String, String> customization =
+        List<CustomizationEntry> customization =
                 customizationResolver.validateSubmission(product, request.getCustomization());
-        String signature = CustomizationSignature.of(customization);
+        String signature = CustomizationSignature.of(CustomizationValues.asValueMap(customization));
 
         // Same product AND same personalisation means the same line; anything else is a new one.
         CartItem existing = cart.getItems().stream()
@@ -218,8 +220,26 @@ public class CartServiceImpl implements CartService {
                 .inStock(product.isInStock())
                 .availableStock(product.getStockQuantity())
                 .productType(product.getProductType())
-                .customization(Map.copyOf(item.getCustomization()))
+                .customization(toCustomizationResponse(item.getCustomization()))
                 .build();
+    }
+
+    /**
+     * Renders a line's stored snapshot for the API: labels and types come from the snapshot itself,
+     * and each value is typed to match its field rather than handed over as raw text.
+     */
+    static List<CustomizationValueResponse> toCustomizationResponse(List<CustomizationEntry> entries) {
+        if (entries == null || entries.isEmpty()) {
+            return List.of();
+        }
+        return entries.stream()
+                .map(entry -> CustomizationValueResponse.builder()
+                        .key(entry.getOptionKey())
+                        .label(entry.getLabel())
+                        .fieldType(entry.getFieldType())
+                        .value(CustomizationValues.toApi(entry.getFieldType(), entry.getValue()))
+                        .build())
+                .toList();
     }
 
     private String primaryImageUrl(Product product) {

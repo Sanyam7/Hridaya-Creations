@@ -6,6 +6,7 @@ import com.hridayacreations.dto.request.ProductColorRequest;
 import com.hridayacreations.dto.request.ProductCustomizationOptionRequest;
 import com.hridayacreations.dto.response.CartItemResponse;
 import com.hridayacreations.dto.response.CartResponse;
+import com.hridayacreations.dto.response.CustomizationValueResponse;
 import com.hridayacreations.dto.response.ProductCustomizationOptionResponse;
 import com.hridayacreations.dto.response.ProductResponse;
 import com.hridayacreations.entity.Category;
@@ -94,7 +95,7 @@ class CartCustomizationPersistenceTest {
         CartResponse cart = cartService.addToCart(add(productId, 1, Map.of("customerName", "Sarah")));
 
         assertThat(cart.getItems()).hasSize(2);
-        assertThat(cart.getItems()).extracting(i -> i.getCustomization().get("customerName"))
+        assertThat(cart.getItems()).extracting(i -> valueOf(i, "customerName"))
                 .containsExactlyInAnyOrder("John", "Sarah");
         assertThat(cart.getTotalQuantity()).isEqualTo(2);
     }
@@ -131,8 +132,11 @@ class CartCustomizationPersistenceTest {
 
         CartItemResponse line = cartService.getMyCart().getItems().get(0);
         assertThat(line.getCustomization())
-                .containsEntry("customerName", "John")
-                .containsEntry("message", "Happy Birthday!");
+                .extracting(CustomizationValueResponse::getKey, CustomizationValueResponse::getLabel,
+                        CustomizationValueResponse::getValue)
+                .containsExactly(
+                        tuple("customerName", "Name / Text to Print", "John"),
+                        tuple("message", "Personal Message", "Happy Birthday!"));
         assertThat(line.getProductType()).isEqualTo(ProductType.CUSTOMIZABLE);
     }
 
@@ -248,12 +252,20 @@ class CartCustomizationPersistenceTest {
 
         CartResponse cart = cartService.addToCart(add(productId, 1, Map.of("color", "red")));
 
-        assertThat(cart.getItems().get(0).getCustomization()).containsEntry("color", "red");
+        assertThat(valueOf(cart.getItems().get(0), "color")).isEqualTo("red");
     }
 
     /* ----------------------------------------------------------------- */
 
-    private AddToCartRequest add(Long productId, int quantity, Map<String, String> customization) {
+    /** The value of one field on a cart line, or null when the line has no such field. */
+    private static Object valueOf(CartItemResponse line, String key) {
+        return line.getCustomization().stream()
+                .filter(value -> key.equals(value.getKey()))
+                .map(CustomizationValueResponse::getValue)
+                .findFirst().orElse(null);
+    }
+
+    private AddToCartRequest add(Long productId, int quantity, Map<String, Object> customization) {
         return AddToCartRequest.builder()
                 .productId(productId).quantity(quantity).customization(customization).build();
     }

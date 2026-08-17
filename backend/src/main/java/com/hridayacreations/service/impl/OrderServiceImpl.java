@@ -9,6 +9,7 @@ import com.hridayacreations.dto.response.PagedResponse;
 import com.hridayacreations.entity.Address;
 import com.hridayacreations.entity.Cart;
 import com.hridayacreations.entity.CartItem;
+import com.hridayacreations.entity.CustomizationEntry;
 import com.hridayacreations.entity.Order;
 import com.hridayacreations.entity.OrderItem;
 import com.hridayacreations.entity.Product;
@@ -38,7 +39,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.LinkedHashMap;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Default order implementation: atomic checkout from the cart with stock decrement and snapshotting,
@@ -107,9 +109,10 @@ public class OrderServiceImpl implements OrderService {
                     .quantity(cartItem.getQuantity())
                     .lineTotal(lineTotal)
                     .imageUrl(primaryImageUrl(product))
-                    // Snapshotted alongside name/SKU/price so the order still reads correctly
-                    // if the product's customization configuration changes later.
-                    .customization(new LinkedHashMap<>(cartItem.getCustomization()))
+                    // Snapshotted alongside name/SKU/price — labels and field types included —
+                    // so the order still reads correctly however the product's customization
+                    // configuration changes afterwards.
+                    .customization(copyCustomization(cartItem.getCustomization()))
                     .build();
             order.addItem(orderItem);
 
@@ -263,5 +266,23 @@ public class OrderServiceImpl implements OrderService {
                 .map(ProductImage::getImageUrl)
                 .findFirst()
                 .orElseGet(() -> product.getImages().isEmpty() ? null : product.getImages().get(0).getImageUrl());
+    }
+
+    /**
+     * Deep-copies the cart line's personalisation onto the order line. Copied rather than shared so
+     * the order's record is genuinely its own: clearing the cart afterwards, or any later edit to
+     * the cart line, cannot reach back into a placed order.
+     */
+    private List<CustomizationEntry> copyCustomization(List<CustomizationEntry> entries) {
+        List<CustomizationEntry> copy = new ArrayList<>();
+        for (CustomizationEntry entry : entries) {
+            copy.add(CustomizationEntry.builder()
+                    .optionKey(entry.getOptionKey())
+                    .label(entry.getLabel())
+                    .fieldType(entry.getFieldType())
+                    .value(entry.getValue())
+                    .build());
+        }
+        return copy;
     }
 }

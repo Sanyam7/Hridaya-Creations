@@ -1,6 +1,7 @@
 package com.hridayacreations.entity;
 
 import com.hridayacreations.util.CustomizationSignature;
+import com.hridayacreations.util.CustomizationValues;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
@@ -9,7 +10,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.ForeignKey;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.MapKeyColumn;
+import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.Builder;
@@ -19,8 +20,8 @@ import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 
 import java.math.BigDecimal;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * A line item within a {@link Cart} referencing a {@link Product} and a chosen quantity.
@@ -56,8 +57,9 @@ public class CartItem extends BaseEntity {
     private BigDecimal unitPrice;
 
     /**
-     * The customer's personalisation, keyed by customization option. Always empty for a readymade
-     * product — the server clears it rather than trusting the client.
+     * The customer's personalisation, in the order the fields were presented, each entry carrying
+     * the label and input kind it was answered under. Always empty for a readymade product — the
+     * server clears it rather than trusting the client.
      */
     @Builder.Default
     @ElementCollection(fetch = FetchType.LAZY)
@@ -66,9 +68,8 @@ public class CartItem extends BaseEntity {
             joinColumns = @JoinColumn(name = "cart_item_id",
                     foreignKey = @ForeignKey(name = "fk_cart_item_customization_item"))
     )
-    @MapKeyColumn(name = "option_key", length = 60)
-    @Column(name = "option_value", length = 1000)
-    private Map<String, String> customization = new LinkedHashMap<>();
+    @OrderColumn(name = "display_order")
+    private List<CustomizationEntry> customization = new ArrayList<>();
 
     /**
      * Fixed-width digest of {@link #customization}, so the database can enforce line identity with
@@ -81,13 +82,16 @@ public class CartItem extends BaseEntity {
 
     /**
      * Replaces the personalisation and keeps the signature in step, so the two can never disagree.
+     *
+     * <p>The signature covers only keys and values, not labels — renaming a field must not split an
+     * existing cart line into two.
      */
-    public void applyCustomization(Map<String, String> values) {
+    public void applyCustomization(List<CustomizationEntry> entries) {
         customization.clear();
-        if (values != null) {
-            customization.putAll(values);
+        if (entries != null) {
+            customization.addAll(entries);
         }
-        customizationSignature = CustomizationSignature.of(customization);
+        customizationSignature = CustomizationSignature.of(CustomizationValues.asValueMap(customization));
     }
 
     /**

@@ -35,11 +35,15 @@ public class AddToCartRequest {
     private Integer quantity;
 
     /**
-     * The customer's personalisation, keyed by customization option. Validated server-side against
-     * the product's stored configuration — options the admin did not enable are rejected, and a
-     * readymade product rejects any customization at all.
+     * The customer's personalisation, keyed by customization field. Values are typed to match the
+     * field: a JSON string for text, a JSON number for NUMBER, a JSON boolean for BOOLEAN.
+     *
+     * <p>Validated server-side against the product's stored configuration — fields the admin did
+     * not configure are rejected, and a readymade product rejects any customization at all. Note
+     * that {@code false} is a submitted answer, not an omission: only leaving a key out (or sending
+     * null) counts as unanswered.
      */
-    @Schema(description = "Customization values keyed by option; omit for readymade products",
-            example = "{\"customerName\": \"John\"}")
-    private Map<String, String> customization;
+    @Schema(description = "Customization values keyed by field; omit for readymade products",
+            example = "{\"customerName\": \"John\", \"cf_luckyNumber\": 7, \"cf_giftWrap\": false}")
+    private Map<String, Object> customization;
 }

@@ -8,7 +8,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.ForeignKey;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.MapKeyColumn;
+import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
 import lombok.Builder;
 import lombok.Getter;
@@ -17,8 +17,8 @@ import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 
 import java.math.BigDecimal;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * A line item within an {@link Order}. Product name, SKU and price are snapshotted at purchase time.
@@ -60,8 +60,11 @@ public class OrderItem extends BaseEntity {
     private String imageUrl;
 
     /**
-     * The personalisation as it was at purchase time. Snapshotted like name/SKU/price so the order
-     * still reads correctly after the product's customization configuration changes.
+     * The personalisation as it was at purchase time, each entry carrying the label and input kind
+     * the customer answered under. Snapshotted like name/SKU/price, and for the same reason: the
+     * order must stay readable and fulfillable after the product's configuration moves on. An admin
+     * who renames "Lucky Number" to "Your Number", changes its type, or deletes it outright cannot
+     * retroactively alter or erase what this customer actually asked for.
      */
     @Builder.Default
     @ElementCollection(fetch = FetchType.LAZY)
@@ -70,7 +73,6 @@ public class OrderItem extends BaseEntity {
             joinColumns = @JoinColumn(name = "order_item_id",
                     foreignKey = @ForeignKey(name = "fk_order_item_customization_item"))
     )
-    @MapKeyColumn(name = "option_key", length = 60)
-    @Column(name = "option_value", length = 1000)
-    private Map<String, String> customization = new LinkedHashMap<>();
+    @OrderColumn(name = "display_order")
+    private List<CustomizationEntry> customization = new ArrayList<>();
 }

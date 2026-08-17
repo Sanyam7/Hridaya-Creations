@@ -98,15 +98,27 @@ CREATE TABLE product_tags (
     CONSTRAINT fk_product_tags_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
 );
 
--- Customization options an admin enabled for a product. A row's presence is its
+-- Customization fields an admin configured for a product. A row's presence is its
 -- enablement; the table is empty whenever products.product_type is 'READYMADE'.
--- Input kind, length limits and choices live in the server-side CustomizationCatalog.
+--
+-- Two kinds of row share this shape. A built-in option (is_custom FALSE) names an entry
+-- in the server-side CustomizationCatalog, which owns its input kind, choices and hard
+-- limits; only label/placeholder/required and a *tighter* max_length apply per product.
+-- A custom field (is_custom TRUE) is admin-authored and has no catalog entry, so the row
+-- is the whole definition and field_type is authoritative. Custom keys are prefixed
+-- 'cf_' so they can never collide with a catalog key added later.
 CREATE TABLE product_customization_options (
-    product_id    BIGINT       NOT NULL,
-    display_order INTEGER      NOT NULL,
-    option_key    VARCHAR(60)  NOT NULL,
-    label         VARCHAR(120) NOT NULL,
-    required      BOOLEAN      NOT NULL DEFAULT FALSE,
+    product_id    BIGINT         NOT NULL,
+    display_order INTEGER        NOT NULL,
+    option_key    VARCHAR(60)    NOT NULL,
+    label         VARCHAR(120)   NOT NULL,
+    required      BOOLEAN        NOT NULL DEFAULT FALSE,
+    is_custom     BOOLEAN        NOT NULL DEFAULT FALSE,
+    field_type    VARCHAR(20),                 -- set for custom fields; NULL for built-ins
+    placeholder   VARCHAR(120),
+    max_length    INTEGER,                     -- TEXT/TEXTAREA cap
+    min_value     NUMERIC(18, 4),              -- NUMBER bounds
+    max_value     NUMERIC(18, 4),
     PRIMARY KEY (product_id, display_order),
     CONSTRAINT fk_product_cust_options_product FOREIGN KEY (product_id) REFERENCES products (id) ON DELETE CASCADE
 );
@@ -172,11 +184,17 @@ CREATE TABLE cart_items (
     CONSTRAINT fk_cart_item_product FOREIGN KEY (product_id) REFERENCES products (id)
 );
 
+-- Each value carries a snapshot of the field it answered, so a line renders without
+-- consulting the product's current configuration. option_value is canonical text:
+-- 'true'/'false' for BOOLEAN, a plain decimal for NUMBER.
 CREATE TABLE cart_item_customization (
-    cart_item_id BIGINT        NOT NULL,
-    option_key   VARCHAR(60)   NOT NULL,
-    option_value VARCHAR(1000),
-    PRIMARY KEY (cart_item_id, option_key),
+    cart_item_id  BIGINT        NOT NULL,
+    display_order INTEGER       NOT NULL,
+    option_key    VARCHAR(60)   NOT NULL,
+    label         VARCHAR(120)  NOT NULL,
+    field_type    VARCHAR(20)   NOT NULL,
+    option_value  VARCHAR(1000),
+    PRIMARY KEY (cart_item_id, display_order),
     CONSTRAINT fk_cart_item_customization_item FOREIGN KEY (cart_item_id) REFERENCES cart_items (id) ON DELETE CASCADE
 );
 
@@ -260,12 +278,17 @@ CREATE TABLE order_items (
     CONSTRAINT fk_order_item_product FOREIGN KEY (product_id) REFERENCES products (id)
 );
 
--- The personalisation as purchased, snapshotted like name/SKU/price.
+-- The personalisation as purchased, snapshotted like name/SKU/price -- label and
+-- field_type included, so a past order stays readable and fulfillable after the admin
+-- renames, retypes or deletes the field it answered.
 CREATE TABLE order_item_customization (
     order_item_id BIGINT        NOT NULL,
+    display_order INTEGER       NOT NULL,
     option_key    VARCHAR(60)   NOT NULL,
+    label         VARCHAR(120)  NOT NULL,
+    field_type    VARCHAR(20)   NOT NULL,
     option_value  VARCHAR(1000),
-    PRIMARY KEY (order_item_id, option_key),
+    PRIMARY KEY (order_item_id, display_order),
     CONSTRAINT fk_order_item_customization_item FOREIGN KEY (order_item_id) REFERENCES order_items (id) ON DELETE CASCADE
 );
 
