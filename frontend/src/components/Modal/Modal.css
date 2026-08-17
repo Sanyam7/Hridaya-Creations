@@ -88,6 +88,14 @@
 .color-swatch:hover, .color-swatch.active { transform: scale(1.2); border-color: #fff; }
 .color-swatch:focus-visible { outline: 2px solid var(--pink, #ff4d9e); outline-offset: 2px; }
 
+/* Uploaded image preview */
+.upload-preview { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; margin-top: .4rem; }
+.upload-preview-img {
+  width: 96px; height: 96px; object-fit: cover; border-radius: 12px; flex-shrink: 0;
+  border: 1px solid rgba(255,255,255,.15);
+}
+.upload-remove { padding: .35rem .8rem; font-size: .8rem; }
+
 /* Qty chips */
 .qty-options { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .4rem; }
 .qty-chip {

@@ -1,6 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
 import { productApi, resolveImageUrl } from "../../api";
 import { normalizeProductColors } from "../../constants/productColors";
+import {
+  catalogEntry,
+  isCustomizable,
+  normalizeCustomizationOptions,
+} from "../../constants/productCustomization";
 import { PRODUCTS } from "../../data/products";
 import ProductCard from "./ProductCard";
 import VariantsModal from "../Modal/VariantsModal";
@@ -22,6 +27,29 @@ const VISUALS = PRODUCTS.reduce((acc, p) => {
   acc[p.name] = { emoji: p.emoji, image: p.image, features: p.features, desc: p.desc };
   return acc;
 }, {});
+
+// The curated offline catalog predates per-product configuration, so give it the same
+// starting form the migration backfills onto previously-customizable products. Only ever
+// reached when the API is unreachable; live products carry their own configuration.
+const FALLBACK_OPTIONS = [
+  { ...catalogEntry("customerName"), required: true },
+  { ...catalogEntry("photo"), required: false },
+  { ...catalogEntry("message"), required: false },
+].filter(Boolean);
+
+/** Decorate the curated catalog so its variants behave like customizable products. */
+function withFallbackCustomization(categories) {
+  return categories.map((category) => ({
+    ...category,
+    variants: (category.variants || []).map((variant) => ({
+      ...variant,
+      productType: "CUSTOMIZABLE",
+      customizationOptions: FALLBACK_OPTIONS,
+      hasColors: Array.isArray(variant.colors) && variant.colors.length > 0,
+      colors: normalizeProductColors(variant.colors),
+    })),
+  }));
+}
 
 /** Group live backend products by category into the shape the cards expect. */
 function groupByCategory(apiProducts, catImages = {}) {
@@ -60,6 +88,10 @@ function groupByCategory(apiProducts, catImages = {}) {
           // Exactly the colours the admin configured — absent for older products.
           hasColors: !!p.hasColors,
           colors: normalizeProductColors(p.colors),
+          // Drives whether this variant gets a customization step at all, and which
+          // fields that step shows. Nothing about the form is decided in the UI.
+          productType: isCustomizable(p) ? "CUSTOMIZABLE" : "READYMADE",
+          customizationOptions: normalizeCustomizationOptions(p.customizationOptions),
           image: resolveImageUrl(p.primaryImageUrl),
         }))
         .sort((a, b) => a.price - b.price),
@@ -106,7 +138,7 @@ export default function Products() {
   // Resilient fallback: if the API is unreachable (e.g. backend cold start),
   // show the curated local catalog so the page is never empty.
   const usingFallback = error || (apiProducts && categories.length === 0);
-  const list = usingFallback ? PRODUCTS : categories;
+  const list = usingFallback ? withFallbackCustomization(PRODUCTS) : categories;
   const loading = apiProducts === null && !error;
   const visibleProducts = showAll ? list : list.slice(0, 4);
 

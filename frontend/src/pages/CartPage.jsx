@@ -4,11 +4,19 @@ import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import { cartApi, addressApi, orderApi } from "../api";
 import { colorSwatchStyle, normalizeProductColors } from "../constants/productColors";
+import { catalogEntry } from "../constants/productCustomization";
 import productMap from "../data/productMap.json";
 import "./CartPage.css";
 
 /** Resolve a stored customization colour to {id, name, hexCode}, or null when there is none. */
 const selectedColor = (color) => (color ? normalizeProductColors([color])[0] || null : null);
+
+/** Human label for a customization key, falling back to the key itself. */
+const optionLabel = (key) => catalogEntry(key)?.label || key;
+
+/** The non-colour customization entries of a cart line, ready to render as chips. */
+const customizationChips = (item) =>
+  Object.entries(item.customization || {}).filter(([key]) => key !== "color");
 
 export default function CartPage() {
   const { items, removeFromCart, updateQty, clearCart, totalItems, totalPrice } = useCart();
@@ -49,15 +57,13 @@ export default function CartPage() {
   const buildNotes = () =>
     items
       .map((i) => {
-        const c = i.customization || {};
-        const bits = [];
-        const color = selectedColor(c.color);
-        if (c.printName) bits.push(`Name: ${c.printName}`);
-        if (color)       bits.push(`Color: ${color.name}`);
-        if (c.font)      bits.push(`Font: ${c.font}`);
-        if (c.message)   bits.push(`Msg: ${c.message}`);
-        if (c.fileName)  bits.push(`File: ${c.fileName}`);
-        if (c.special)   bits.push(`Note: ${c.special}`);
+        // Driven by whatever the product was configured with, so a new customization
+        // option shows up in the order notes without touching this.
+        const bits = Object.entries(i.customization || {}).map(([key, value]) =>
+          key === "color"
+            ? `Colour: ${selectedColor(value)?.name || value}`
+            : `${optionLabel(key)}: ${value}`
+        );
         return `- ${i.name} x${i.qty}${bits.length ? " (" + bits.join("; ") + ")" : ""}`;
       })
       .join("\n")
@@ -78,15 +84,17 @@ export default function CartPage() {
     const err = validAddress();
     if (err) { setPlaceError(err); return; }
 
-    // Resolve cart items to backend products and merge quantities.
-    const merged = new Map();
+    // Each line goes to the server with its own personalisation. Lines are NOT merged by
+    // product id any more: two differently-personalised copies of the same product are
+    // genuinely different items, and the server keys them the same way.
+    const lines = [];
     let unmapped = 0;
     for (const it of items) {
       const pid = it.backendProductId || productMap[it.variantKey];
       if (!pid) { unmapped++; continue; }
-      merged.set(pid, (merged.get(pid) || 0) + it.qty);
+      lines.push({ productId: pid, quantity: it.qty, customization: it.customization || {} });
     }
-    if (merged.size === 0) {
+    if (lines.length === 0) {
       setPlaceError("These items aren't available for online checkout yet. Please contact us to order.");
       return;
     }
@@ -96,8 +104,8 @@ export default function CartPage() {
     try {
       // Start from a clean server-side cart, then add the current items.
       await cartApi.clear().catch(() => {});
-      for (const [productId, quantity] of merged.entries()) {
-        await cartApi.addItem(productId, quantity);
+      for (const line of lines) {
+        await cartApi.addItem(line.productId, line.quantity, line.customization);
       }
       const created = await addressApi.create({
         fullName: addr.fullName.trim(),
@@ -211,25 +219,14 @@ export default function CartPage() {
                   <div className="item-name">{item.name}</div>
 
                   <div className="item-custom">
-                    {item.customization.printName && (
-                      <span className="custom-chip">✏️ {item.customization.printName}</span>
-                    )}
-                    {item.customization.font && (
-                      <span className="custom-chip">🔤 {item.customization.font}</span>
-                    )}
-                    {item.customization.fileName && (
-                      <span className="custom-chip">🖼️ {item.customization.fileName}</span>
-                    )}
-                    {item.customization.message && (
-                      <span className="custom-chip">💬 {item.customization.message}</span>
-                    )}
+                    {customizationChips(item).map(([key, value]) => (
+                      <span className="custom-chip" key={key}>
+                        {optionLabel(key)}: {key === "photo" ? "image attached" : value}
+                      </span>
+                    ))}
                   </div>
 
-                  {item.customization.special && (
-                    <div className="item-note">📝 {item.customization.special}</div>
-                  )}
-
-                  {selectedColor(item.customization.color) && (
+                  {selectedColor(item.customization?.color) && (
                     <div className="item-color-row">
                       <span className="item-color-label">Color:</span>
                       <span

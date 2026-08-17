@@ -25,13 +25,30 @@ export const productApi = {
 
 export const cartApi = {
   get: () => request("GET", "/cart", { auth: true }),
-  addItem: (productId, quantity) =>
-    request("POST", "/cart/items", { auth: true, body: { productId, quantity } }),
+  /**
+   * Adds a line. `customization` is validated server-side against the product's saved
+   * configuration; an identical line merges into a quantity bump, a differently
+   * personalised one becomes its own line.
+   */
+  addItem: (productId, quantity, customization) =>
+    request("POST", "/cart/items", {
+      auth: true,
+      body: { productId, quantity, customization: customization || undefined },
+    }),
   updateItem: (itemId, quantity) =>
     request("PUT", `/cart/items/${itemId}`, { auth: true, body: { quantity } }),
   removeItem: (itemId) =>
     request("DELETE", `/cart/items/${itemId}`, { auth: true }),
   clear: () => request("DELETE", "/cart", { auth: true }),
+};
+
+/** Customer-facing image upload, used by the photo customization field. */
+export const imageApi = {
+  upload: (file) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return upload("POST", "/images", fd);
+  },
 };
 
 export const addressApi = {

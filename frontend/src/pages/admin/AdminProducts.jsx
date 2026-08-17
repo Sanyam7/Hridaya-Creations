@@ -1,13 +1,22 @@
 import { useEffect, useState, useCallback } from "react";
 import { adminApi, PRODUCT_STATUSES, resolveImageUrl } from "../../api";
 import { normalizeProductColors } from "../../constants/productColors";
+import {
+  PRODUCT_TYPES,
+  isCustomizable,
+  normalizeCustomizationOptions,
+} from "../../constants/productCustomization";
 import ProductColorSelector from "./ProductColorSelector";
+import ProductCustomizationSelector from "./ProductCustomizationSelector";
 
 const PAGE_SIZE = 10;
 const emptyForm = {
   name: "", categoryId: "", sellingPrice: "", originalPrice: "",
   stockQuantity: "", shortDescription: "", description: "", sku: "",
-  productStatus: "ACTIVE", customizable: true, featured: false, tags: "",
+  productStatus: "ACTIVE", featured: false, tags: "",
+  // A new product is readymade until the admin says otherwise: the safe default, and
+  // the only one that needs no further configuration to be valid.
+  productType: PRODUCT_TYPES.READYMADE, customizationOptions: [],
   // Colours default to off: safest for a brand-new product, and it matches how
   // every product created before this feature existed is treated.
   hasColors: false, colors: [],
@@ -251,8 +260,10 @@ function toForm(p) {
     description: p.description || "",
     sku: p.sku || "",
     productStatus: p.productStatus || "ACTIVE",
-    customizable: !!p.customizable,
     featured: !!p.featured,
+    productType: isCustomizable(p) ? PRODUCT_TYPES.CUSTOMIZABLE : PRODUCT_TYPES.READYMADE,
+    customizationOptions: normalizeCustomizationOptions(p.customizationOptions)
+      .map(({ key, label, required }) => ({ key, label, required })),
     tags: (p.tags || []).join(", "),
     hasColors: p.hasColors == null ? colors.length > 0 : !!p.hasColors,
     colors,
@@ -265,6 +276,7 @@ function ProductForm({ initial, cats, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
   const [colorErr, setColorErr] = useState("");
+  const [customErr, setCustomErr] = useState("");
   const set = (k, v) => { setF(p => ({ ...p, [k]: v })); setErr(""); };
 
   // Colour edits are product modifications like any other, so they feed the same
@@ -277,8 +289,21 @@ function ProductForm({ initial, cats, onClose, onSaved }) {
   };
 
   const setColors = ({ hasColors, colors }) => {
-    setF(p => ({ ...p, hasColors, colors }));
-    setErr(""); setColorErr("");
+    setF(p => ({
+      ...p,
+      hasColors,
+      colors,
+      // The colour customization option only exists while the product has colours.
+      customizationOptions: hasColors
+        ? p.customizationOptions
+        : p.customizationOptions.filter(o => o.key !== "color"),
+    }));
+    setErr(""); setColorErr(""); setCustomErr("");
+  };
+
+  const setCustomization = ({ productType, options }) => {
+    setF(p => ({ ...p, productType, customizationOptions: options }));
+    setErr(""); setCustomErr("");
   };
 
   const submit = async (e) => {
@@ -292,6 +317,11 @@ function ProductForm({ initial, cats, onClose, onSaved }) {
       setColorErr(message);
       return setErr(message);
     }
+    if (f.productType === PRODUCT_TYPES.CUSTOMIZABLE && f.customizationOptions.length === 0) {
+      const message = "Please select at least one customization option, or set the product type to Readymade.";
+      setCustomErr(message);
+      return setErr(message);
+    }
 
     const body = {
       name: f.name.trim(),
@@ -303,7 +333,12 @@ function ProductForm({ initial, cats, onClose, onSaved }) {
       stockQuantity: Number(f.stockQuantity),
       productStatus: f.productStatus,
       featured: f.featured,
-      customizable: f.customizable,
+      // Sent on every save as the complete replacement configuration, so options the
+      // admin switched off are dropped server-side rather than left behind.
+      productType: f.productType,
+      customizationOptions: f.productType === PRODUCT_TYPES.CUSTOMIZABLE
+        ? f.customizationOptions.map(({ key, label, required }) => ({ key, label, required }))
+        : [],
       tags: f.tags ? f.tags.split(",").map(t => t.trim()).filter(Boolean) : undefined,
       // Sent on every save as the complete replacement list, so colours the admin
       // removed are dropped server-side rather than left behind.
@@ -373,7 +408,6 @@ function ProductForm({ initial, cats, onClose, onSaved }) {
             <label>Tags (comma-separated)</label>
             <input className="ad-input" value={f.tags} onChange={e => set("tags", e.target.value)} placeholder="mug, photo, birthday" />
           </div>
-          <label className="ad-check"><input type="checkbox" checked={f.customizable} onChange={e => set("customizable", e.target.checked)} /> Customizable</label>
           <label className="ad-check"><input type="checkbox" checked={f.featured} onChange={e => set("featured", e.target.checked)} /> Featured</label>
           <ProductColorSelector
             hasColors={f.hasColors}
@@ -381,6 +415,14 @@ function ProductForm({ initial, cats, onClose, onSaved }) {
             onChange={setColors}
             disabled={saving}
             error={colorErr}
+          />
+          <ProductCustomizationSelector
+            productType={f.productType}
+            options={f.customizationOptions}
+            hasColors={f.hasColors}
+            onChange={setCustomization}
+            disabled={saving}
+            error={customErr}
           />
         </div>
         <div className="ad-modal-actions">

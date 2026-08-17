@@ -2,59 +2,96 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
-import {
-  colorSwatchStyle,
-  normalizeProductColors,
-  productHasColors,
-} from "../../constants/productColors";
+import { imageApi, resolveImageUrl } from "../../api";
+import { colorSwatchStyle, normalizeProductColors } from "../../constants/productColors";
+import { FIELD_TYPES, customerFacingOptions } from "../../constants/productCustomization";
 import "./Modal.css";
 
-const FONTS = ["Classic Serif", "Script / Cursive", "Bold Modern", "Handwritten", "Elegant Thin"];
-const QTYS  = ["1","2","3","5","10","25","50","100+"];
+const QTYS = ["1", "2", "3", "5", "10", "25", "50", "100+"];
 
+/**
+ * The customization step for a personalised product.
+ *
+ * Every field rendered here comes from the product's own `customizationOptions`, so the customer
+ * sees exactly what the admin enabled and nothing else — there is no hardcoded field list. A
+ * product with only a name option shows only a name box.
+ */
 export default function CustomizeModal({ product, onClose, onCloseAll }) {
-  const { currentUser }    = useAuth();
-  const { addToCart }      = useCart();
-  const navigate           = useNavigate();
+  const { currentUser } = useAuth();
+  const { addToCart } = useCart();
+  const navigate = useNavigate();
 
-  // Only products the admin gave colour options get a colour choice; everything
-  // else (including products created before colours existed) skips it entirely.
-  const showColors = productHasColors(product);
-  const colors = useMemo(
-    () => (showColors ? normalizeProductColors(product.colors) : []),
-    [showColors, product.colors]
-  );
+  const options = useMemo(() => customerFacingOptions(product), [product]);
+  const colors = useMemo(() => normalizeProductColors(product.colors), [product.colors]);
 
-  const [form, setForm]       = useState({
-    printName: "", message: "", qty: "1",
-    color: colors[0] || null, font: FONTS[0], special: "",
-  });
-  const [fileName, setFileName]   = useState(null);
+  const [values, setValues] = useState(() => initialValues(options, colors));
+  const [qty, setQty] = useState("1");
+  const [uploading, setUploading] = useState({});
   const [submitted, setSubmitted] = useState(false);
-  const [error, setError]         = useState("");
+  const [error, setError] = useState("");
 
-  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+  const set = (key, value) => {
+    setValues((prev) => ({ ...prev, [key]: value }));
+    setError("");
+  };
+
+  const handleUpload = async (option, file) => {
+    if (!file) return;
+    setUploading((p) => ({ ...p, [option.key]: true }));
+    setError("");
+    try {
+      const stored = await imageApi.upload(file);
+      set(option.key, stored.url);
+    } catch (e) {
+      // Keep the rest of the form intact so the customer does not lose their typing.
+      setError(e.message || `Could not upload your ${option.label.toLowerCase()}. Please try again.`);
+    } finally {
+      setUploading((p) => ({ ...p, [option.key]: false }));
+    }
+  };
+
+  const validate = () => {
+    for (const option of options) {
+      const value = (values[option.key] || "").trim();
+      if (option.required && !value) {
+        return `${option.label} is required.`;
+      }
+      if (option.maxLength && value.length > option.maxLength) {
+        return `${option.label} must not exceed ${option.maxLength} characters.`;
+      }
+    }
+    return null;
+  };
 
   const handleSubmit = () => {
-    if (!form.printName.trim()) { setError("Please enter a name or text to print."); return; }
+    const problem = validate();
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    if (Object.values(uploading).some(Boolean)) {
+      setError("Please wait for your upload to finish.");
+      return;
+    }
     if (!currentUser) {
       onClose();
       navigate("/login");
       return;
     }
-    addToCart(product, { ...form, fileName });
+    // Drop blanks so optional fields the customer skipped are not stored as empty strings.
+    const customization = {};
+    for (const option of options) {
+      const value = (values[option.key] || "").trim();
+      if (value) customization[option.key] = value;
+    }
+    addToCart(product, { customization, qty: parseInt(qty, 10) || 1 });
     setSubmitted(true);
-  };
-
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) setFileName(file.name);
   };
 
   if (submitted) {
     return (
       <div className="modal-overlay" onClick={onClose}>
-        <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal" onClick={(e) => e.stopPropagation()}>
           <button className="modal-close" onClick={onClose}>✕</button>
           <div className="modal-success">
             <div className="success-icon">🎉</div>
@@ -63,12 +100,10 @@ export default function CustomizeModal({ product, onClose, onCloseAll }) {
               Your personalized <strong>{product.name}</strong> has been added to your cart.
             </p>
             <div className="success-btns">
-              <button className="btn-primary" onClick={() => { onCloseAll ? onCloseAll() : onClose(); navigate("/cart"); }}>
+              <button className="btn-primary" onClick={() => { (onCloseAll || onClose)(); navigate("/cart"); }}>
                 View Cart 🛒
               </button>
-              <button className="btn-outline" onClick={onClose}>
-                Continue Shopping
-              </button>
+              <button className="btn-outline" onClick={onClose}>Continue Shopping</button>
             </div>
           </div>
         </div>
@@ -78,7 +113,7 @@ export default function CustomizeModal({ product, onClose, onCloseAll }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
         <button className="modal-close" onClick={onClose}>✕</button>
 
         <div className="modal-header">
@@ -97,116 +132,45 @@ export default function CustomizeModal({ product, onClose, onCloseAll }) {
           <div className="modal-price">Starting at ₹{product.price}</div>
         </div>
 
-        {/* Features */}
-        <div className="modal-features">
-          {product.features.map(f => <span className="feat-chip" key={f}>✓ {f}</span>)}
-        </div>
+        {product.features?.length > 0 && (
+          <div className="modal-features">
+            {product.features.map((f) => <span className="feat-chip" key={f}>✓ {f}</span>)}
+          </div>
+        )}
 
         <div className="modal-divider" />
 
-        {/* Form */}
-        <div className="form-group">
-          <label className="form-label">Name / Text to Print *</label>
-          <input
-            className="form-input"
-            placeholder="e.g. Anjali ❤️  or  Happy Birthday Mom"
-            value={form.printName}
-            onChange={e => set("printName", e.target.value)}
+        {options.map((option) => (
+          <CustomizationField
+            key={option.key}
+            option={option}
+            value={values[option.key] || ""}
+            colors={colors}
+            uploading={!!uploading[option.key]}
+            onChange={(v) => set(option.key, v)}
+            onUpload={(file) => handleUpload(option, file)}
           />
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">Personal Message (optional)</label>
-          <input
-            className="form-input"
-            placeholder="e.g. With love, forever yours"
-            value={form.message}
-            onChange={e => set("message", e.target.value)}
-          />
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">Upload Photo / Design</label>
-          <div className="upload-zone" onClick={() => document.getElementById("modal-file-up").click()}>
-            <div className="upload-icon">📷</div>
-            <div className="upload-text">
-              {fileName
-                ? <span style={{ color: "#a78bfa" }}>{fileName}</span>
-                : <><span className="upload-link">Click to upload</span> or drag & drop<br />PNG · JPG · PDF — up to 10 MB</>
-              }
-            </div>
-            <input
-              id="modal-file-up" type="file"
-              accept="image/*,.pdf" style={{ display: "none" }}
-              onChange={handleFileChange}
-            />
-          </div>
-        </div>
-
-        <div className="form-row">
-          {showColors && (
-            <div className="form-group" style={{ flex: 1 }}>
-              <label className="form-label" id="customize-color-label">
-                Select Color{form.color ? <span className="color-selected-name"> — {form.color.name}</span> : null}
-              </label>
-              <div className="color-options" role="radiogroup" aria-labelledby="customize-color-label">
-                {colors.map((color) => {
-                  const active = form.color?.id === color.id;
-                  return (
-                    <button
-                      key={color.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={active}
-                      aria-label={color.name}
-                      className={`color-swatch ${active ? "active" : ""}`}
-                      style={colorSwatchStyle(color.hexCode)}
-                      onClick={() => set("color", color)}
-                      title={color.name}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <div className="form-group" style={{ flex: 1 }}>
-            <label className="form-label">Font Style</label>
-            <select className="form-select" value={form.font} onChange={e => set("font", e.target.value)}>
-              {FONTS.map(f => <option key={f}>{f}</option>)}
-            </select>
-          </div>
-        </div>
+        ))}
 
         <div className="form-group">
           <label className="form-label">Quantity</label>
           <div className="qty-options">
-            {QTYS.map(q => (
+            {QTYS.map((q) => (
               <button
                 key={q}
-                className={`qty-chip ${form.qty === q ? "active" : ""}`}
-                onClick={() => set("qty", q)}
+                type="button"
+                className={`qty-chip ${qty === q ? "active" : ""}`}
+                aria-pressed={qty === q}
+                onClick={() => setQty(q)}
               >{q}</button>
             ))}
           </div>
         </div>
 
-        <div className="form-group">
-          <label className="form-label">Special Instructions</label>
-          <textarea
-            className="form-textarea"
-            placeholder="Occasion, placement preference, or anything else..."
-            value={form.special}
-            onChange={e => set("special", e.target.value)}
-          />
-        </div>
-
-        {error && <div className="form-error">⚠ {error}</div>}
+        {error && <div className="form-error" role="alert">⚠ {error}</div>}
 
         {!currentUser && (
-          <div className="login-notice">
-            🔒 You'll be asked to log in before adding to cart.
-          </div>
+          <div className="login-notice">🔒 You'll be asked to log in before adding to cart.</div>
         )}
 
         <button className="modal-submit" onClick={handleSubmit}>
@@ -215,4 +179,166 @@ export default function CustomizeModal({ product, onClose, onCloseAll }) {
       </div>
     </div>
   );
+}
+
+/** Renders one admin-configured option as the control its field type calls for. */
+function CustomizationField({ option, value, colors, uploading, onChange, onUpload }) {
+  const label = (
+    <label className="form-label" htmlFor={`cf-${option.key}`}>
+      {option.label}{option.required ? " *" : ""}
+    </label>
+  );
+
+  switch (option.fieldType) {
+    case FIELD_TYPES.TEXTAREA:
+      return (
+        <div className="form-group">
+          {label}
+          <textarea
+            id={`cf-${option.key}`}
+            className="form-textarea"
+            maxLength={option.maxLength || undefined}
+            value={value}
+            required={option.required}
+            onChange={(e) => onChange(e.target.value)}
+          />
+        </div>
+      );
+
+    case FIELD_TYPES.DATE:
+      return (
+        <div className="form-group">
+          {label}
+          <input
+            id={`cf-${option.key}`}
+            type="date"
+            className="form-input"
+            value={value}
+            required={option.required}
+            onChange={(e) => onChange(e.target.value)}
+          />
+        </div>
+      );
+
+    case FIELD_TYPES.SELECT:
+      return (
+        <div className="form-group">
+          {label}
+          <select
+            id={`cf-${option.key}`}
+            className="form-select"
+            value={value}
+            required={option.required}
+            onChange={(e) => onChange(e.target.value)}
+          >
+            {!option.required && <option value="">No preference</option>}
+            {option.choices.map((choice) => <option key={choice} value={choice}>{choice}</option>)}
+          </select>
+        </div>
+      );
+
+    case FIELD_TYPES.COLOR: {
+      const selected = colors.find((c) => c.id === value);
+      return (
+        <div className="form-group">
+          <span className="form-label" id={`cf-${option.key}-label`}>
+            {option.label}{option.required ? " *" : ""}
+            {selected ? <span className="color-selected-name"> — {selected.name}</span> : null}
+          </span>
+          <div className="color-options" role="radiogroup" aria-labelledby={`cf-${option.key}-label`}>
+            {colors.map((color) => (
+              <button
+                key={color.id}
+                type="button"
+                role="radio"
+                aria-checked={value === color.id}
+                aria-label={color.name}
+                title={color.name}
+                className={`color-swatch ${value === color.id ? "active" : ""}`}
+                style={colorSwatchStyle(color.hexCode)}
+                onClick={() => onChange(color.id)}
+              />
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    case FIELD_TYPES.IMAGE: {
+      const preview = resolveImageUrl(value);
+      return (
+        <div className="form-group">
+          {label}
+          {preview ? (
+            <div className="upload-preview">
+              <img src={preview} alt={`${option.label} preview`} className="upload-preview-img" />
+              <button type="button" className="btn-outline upload-remove" onClick={() => onChange("")}>
+                Remove
+              </button>
+            </div>
+          ) : (
+            <div
+              className="upload-zone"
+              onClick={() => document.getElementById(`cf-${option.key}`)?.click()}
+            >
+              <div className="upload-icon">{uploading ? "⏳" : "📷"}</div>
+              <div className="upload-text">
+                {uploading ? (
+                  <span style={{ color: "#a78bfa" }}>Uploading…</span>
+                ) : (
+                  <>
+                    <span className="upload-link">Click to upload</span> or drag &amp; drop
+                    <br />PNG · JPG · WEBP · GIF — up to 10 MB
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+          <input
+            id={`cf-${option.key}`}
+            type="file"
+            accept="image/*"
+            style={{ display: "none" }}
+            disabled={uploading}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              onUpload(file);
+            }}
+          />
+        </div>
+      );
+    }
+
+    case FIELD_TYPES.TEXT:
+    default:
+      return (
+        <div className="form-group">
+          {label}
+          <input
+            id={`cf-${option.key}`}
+            className="form-input"
+            maxLength={option.maxLength || undefined}
+            value={value}
+            required={option.required}
+            onChange={(e) => onChange(e.target.value)}
+          />
+        </div>
+      );
+  }
+}
+
+/** Pickers start on a real choice; free-text and uploads start empty. */
+function initialValues(options, colors) {
+  const initial = {};
+  for (const option of options) {
+    if (option.fieldType === FIELD_TYPES.COLOR) {
+      initial[option.key] = colors[0]?.id || "";
+    } else if (option.fieldType === FIELD_TYPES.SELECT && option.required) {
+      initial[option.key] = option.choices[0] || "";
+    } else {
+      initial[option.key] = "";
+    }
+  }
+  return initial;
 }

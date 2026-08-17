@@ -1,14 +1,34 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import CustomizeModal from "./CustomizeModal";
+import { useAuth } from "../../context/AuthContext";
+import { useCart } from "../../context/CartContext";
 import {
   colorSwatchStyle,
   normalizeProductColors,
   productHasColors,
 } from "../../constants/productColors";
+import { isCustomizable } from "../../constants/productCustomization";
+import "./Modal.css";
 import "./VariantsModal.css";
 
 export default function VariantsModal({ product, onClose }) {
   const [selectedVariant, setSelectedVariant] = useState(null);
+  const [addedName, setAddedName] = useState(null);
+  const { currentUser } = useAuth();
+  const { addToCart } = useCart();
+  const navigate = useNavigate();
+
+  // Readymade products have no customization step: straight to the cart.
+  const addReadymade = (variant) => {
+    if (!currentUser) {
+      onClose();
+      navigate("/login");
+      return;
+    }
+    addToCart(variant, { qty: 1 });
+    setAddedName(variant.name);
+  };
 
   if (selectedVariant) {
     // Pass variant as the "product" to CustomizeModal, merged with parent features/colors
@@ -23,6 +43,29 @@ export default function VariantsModal({ product, onClose }) {
         onClose={() => setSelectedVariant(null)}
         onCloseAll={onClose}
       />
+    );
+  }
+
+  if (addedName) {
+    return (
+      <div className="vm-overlay" onClick={onClose}>
+        <div className="vm-panel vm-panel--message" onClick={e => e.stopPropagation()}>
+          <button className="vm-close" onClick={onClose}>✕</button>
+          <div className="modal-success">
+            <div className="success-icon">🎉</div>
+            <h3 className="success-title">Added to Cart!</h3>
+            <p className="success-text"><strong>{addedName}</strong> is in your cart.</p>
+            <div className="success-btns">
+              <button className="btn-primary" onClick={() => { onClose(); navigate("/cart"); }}>
+                View Cart 🛒
+              </button>
+              <button className="btn-outline" onClick={() => setAddedName(null)}>
+                Continue Shopping
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -73,15 +116,19 @@ export default function VariantsModal({ product, onClose }) {
               {/* Color swatches — only for variants the admin gave colour options */}
               <VariantSwatches variant={variant} />
 
-              {/* Price + Button */}
+              {/* Price + Button: customizable products get a customization step,
+                  readymade ones go straight into the cart. */}
               <div className="vm-card-footer">
                 <div className="vm-price">₹{variant.price.toLocaleString()}</div>
-                <button
-                  className="vm-customize-btn"
-                  onClick={() => setSelectedVariant(variant)}
-                >
-                  Customize ✨
-                </button>
+                {isCustomizable(variant) ? (
+                  <button className="vm-customize-btn" onClick={() => setSelectedVariant(variant)}>
+                    Customize ✨
+                  </button>
+                ) : (
+                  <button className="vm-customize-btn" onClick={() => addReadymade(variant)}>
+                    Add to Cart 🛒
+                  </button>
+                )}
               </div>
             </div>
           ))}
