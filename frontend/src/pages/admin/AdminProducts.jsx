@@ -5,6 +5,8 @@ import {
   PRODUCT_TYPES,
   isCustomizable,
   normalizeCustomizationOptions,
+  toOptionPayload,
+  validateCustomFields,
 } from "../../constants/productCustomization";
 import ProductColorSelector from "./ProductColorSelector";
 import ProductCustomizationSelector from "./ProductCustomizationSelector";
@@ -262,8 +264,9 @@ function toForm(p) {
     productStatus: p.productStatus || "ACTIVE",
     featured: !!p.featured,
     productType: isCustomizable(p) ? PRODUCT_TYPES.CUSTOMIZABLE : PRODUCT_TYPES.READYMADE,
-    customizationOptions: normalizeCustomizationOptions(p.customizationOptions)
-      .map(({ key, label, required }) => ({ key, label, required })),
+    // Kept whole: for a custom field this configuration IS its definition, so
+    // trimming it down here would erase it on the next save.
+    customizationOptions: normalizeCustomizationOptions(p.customizationOptions),
     tags: (p.tags || []).join(", "),
     hasColors: p.hasColors == null ? colors.length > 0 : !!p.hasColors,
     colors,
@@ -322,6 +325,12 @@ function ProductForm({ initial, cats, onClose, onSaved }) {
       setCustomErr(message);
       return setErr(message);
     }
+    if (f.productType === PRODUCT_TYPES.CUSTOMIZABLE) {
+      // Same rules the server enforces, checked here so a bad field is named in the
+      // form instead of coming back as a rejected save.
+      const problem = validateCustomFields(f.customizationOptions.filter(o => o.custom));
+      if (problem) { setCustomErr(problem); return setErr(problem); }
+    }
 
     const body = {
       name: f.name.trim(),
@@ -337,7 +346,7 @@ function ProductForm({ initial, cats, onClose, onSaved }) {
       // admin switched off are dropped server-side rather than left behind.
       productType: f.productType,
       customizationOptions: f.productType === PRODUCT_TYPES.CUSTOMIZABLE
-        ? f.customizationOptions.map(({ key, label, required }) => ({ key, label, required }))
+        ? f.customizationOptions.map(toOptionPayload)
         : [],
       tags: f.tags ? f.tags.split(",").map(t => t.trim()).filter(Boolean) : undefined,
       // Sent on every save as the complete replacement list, so colours the admin

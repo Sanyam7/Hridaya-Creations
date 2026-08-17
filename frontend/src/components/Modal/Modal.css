@@ -98,6 +98,8 @@
 
 /* Qty chips */
 .qty-options { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .4rem; }
+/* Yes/No choices reuse the quantity chip so the two read as the same control family */
+.bool-options { display: flex; gap: .45rem; margin-top: .4rem; }
 .qty-chip {
   padding: .35rem .75rem; border-radius: 50px; font-size: .8rem;
   background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);

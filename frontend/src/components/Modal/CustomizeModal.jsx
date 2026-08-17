@@ -9,12 +9,17 @@ import "./Modal.css";
 
 const QTYS = ["1", "2", "3", "5", "10", "25", "50", "100+"];
 
+/** A field is unanswered only when it holds nothing at all — `false` is an answer. */
+const isBlank = (value) =>
+  value === undefined || value === null || (typeof value === "string" && value.trim() === "");
+
 /**
  * The customization step for a personalised product.
  *
  * Every field rendered here comes from the product's own `customizationOptions`, so the customer
- * sees exactly what the admin enabled and nothing else — there is no hardcoded field list. A
- * product with only a name option shows only a name box.
+ * sees exactly what the admin configured and nothing else — there is no hardcoded field list, and
+ * a field the admin invented this morning renders without any change to this file. A product with
+ * only a name option shows only a name box.
  */
 export default function CustomizeModal({ product, onClose, onCloseAll }) {
   const { currentUser } = useAuth();
@@ -50,13 +55,31 @@ export default function CustomizeModal({ product, onClose, onCloseAll }) {
     }
   };
 
+  /** Mirrors the server's rules so a mistake is caught before the round trip. */
   const validate = () => {
     for (const option of options) {
-      const value = (values[option.key] || "").trim();
-      if (option.required && !value) {
-        return `${option.label} is required.`;
+      const value = values[option.key];
+
+      if (isBlank(value)) {
+        // Deliberately not `!value`: for a Yes/No field, "No" is a complete answer and
+        // must satisfy a required field rather than read as an empty one.
+        if (option.required) return `${option.label} is required.`;
+        continue;
       }
-      if (option.maxLength && value.length > option.maxLength) {
+
+      if (option.fieldType === FIELD_TYPES.NUMBER) {
+        const number = Number(value);
+        if (!Number.isFinite(number)) return `${option.label} must be a number.`;
+        if (option.minValue !== null && number < option.minValue) {
+          return `${option.label} must be at least ${option.minValue}.`;
+        }
+        if (option.maxValue !== null && number > option.maxValue) {
+          return `${option.label} must be at most ${option.maxValue}.`;
+        }
+        continue;
+      }
+
+      if (option.maxLength && String(value).trim().length > option.maxLength) {
         return `${option.label} must not exceed ${option.maxLength} characters.`;
       }
     }
@@ -78,13 +101,18 @@ export default function CustomizeModal({ product, onClose, onCloseAll }) {
       navigate("/login");
       return;
     }
-    // Drop blanks so optional fields the customer skipped are not stored as empty strings.
+    // Each value goes out typed to match its field, and unanswered optional fields are
+    // dropped rather than stored as empty strings.
     const customization = {};
     for (const option of options) {
-      const value = (values[option.key] || "").trim();
-      if (value) customization[option.key] = value;
+      const value = values[option.key];
+      if (isBlank(value)) continue;
+
+      if (option.fieldType === FIELD_TYPES.BOOLEAN) customization[option.key] = value === true;
+      else if (option.fieldType === FIELD_TYPES.NUMBER) customization[option.key] = Number(value);
+      else customization[option.key] = String(value).trim();
     }
-    addToCart(product, { customization, qty: parseInt(qty, 10) || 1 });
+    addToCart(product, { customization, fields: options, qty: parseInt(qty, 10) || 1 });
     setSubmitted(true);
   };
 
@@ -144,7 +172,7 @@ export default function CustomizeModal({ product, onClose, onCloseAll }) {
           <CustomizationField
             key={option.key}
             option={option}
-            value={values[option.key] || ""}
+            value={values[option.key]}
             colors={colors}
             uploading={!!uploading[option.key]}
             onChange={(v) => set(option.key, v)}
@@ -181,13 +209,18 @@ export default function CustomizeModal({ product, onClose, onCloseAll }) {
   );
 }
 
-/** Renders one admin-configured option as the control its field type calls for. */
+/**
+ * Renders one configured field as the control its type calls for. Keyed entirely off
+ * `option.fieldType`, so it neither knows nor cares whether the field is one of the built-in
+ * options or something the admin invented for this product alone.
+ */
 function CustomizationField({ option, value, colors, uploading, onChange, onUpload }) {
   const label = (
     <label className="form-label" htmlFor={`cf-${option.key}`}>
       {option.label}{option.required ? " *" : ""}
     </label>
   );
+  const text = value == null ? "" : String(value);
 
   switch (option.fieldType) {
     case FIELD_TYPES.TEXTAREA:
@@ -198,12 +231,58 @@ function CustomizationField({ option, value, colors, uploading, onChange, onUplo
             id={`cf-${option.key}`}
             className="form-textarea"
             maxLength={option.maxLength || undefined}
-            value={value}
+            placeholder={option.placeholder || undefined}
+            value={text}
             required={option.required}
             onChange={(e) => onChange(e.target.value)}
           />
         </div>
       );
+
+    case FIELD_TYPES.NUMBER:
+      return (
+        <div className="form-group">
+          {label}
+          <input
+            id={`cf-${option.key}`}
+            type="number"
+            inputMode="decimal"
+            className="form-input"
+            placeholder={option.placeholder || undefined}
+            min={option.minValue ?? undefined}
+            max={option.maxValue ?? undefined}
+            value={text}
+            required={option.required}
+            onChange={(e) => onChange(e.target.value)}
+          />
+        </div>
+      );
+
+    case FIELD_TYPES.BOOLEAN: {
+      // Three states, not two: no choice yet, Yes, or No. Keeping "not answered" distinct
+      // from "No" is what lets a required Yes/No field be satisfied by either answer while
+      // still catching a customer who skipped it.
+      const labelId = `cf-${option.key}-label`;
+      return (
+        <div className="form-group">
+          <span className="form-label" id={labelId}>
+            {option.label}{option.required ? " *" : ""}
+          </span>
+          <div className="bool-options" role="radiogroup" aria-labelledby={labelId}>
+            {[["Yes", true], ["No", false]].map(([text_, choice]) => (
+              <button
+                key={text_}
+                type="button"
+                role="radio"
+                aria-checked={value === choice}
+                className={`qty-chip ${value === choice ? "active" : ""}`}
+                onClick={() => onChange(choice)}
+              >{text_}</button>
+            ))}
+          </div>
+        </div>
+      );
+    }
 
     case FIELD_TYPES.DATE:
       return (
@@ -213,7 +292,7 @@ function CustomizationField({ option, value, colors, uploading, onChange, onUplo
             id={`cf-${option.key}`}
             type="date"
             className="form-input"
-            value={value}
+            value={text}
             required={option.required}
             onChange={(e) => onChange(e.target.value)}
           />
@@ -227,7 +306,7 @@ function CustomizationField({ option, value, colors, uploading, onChange, onUplo
           <select
             id={`cf-${option.key}`}
             className="form-select"
-            value={value}
+            value={text}
             required={option.required}
             onChange={(e) => onChange(e.target.value)}
           >
@@ -238,7 +317,7 @@ function CustomizationField({ option, value, colors, uploading, onChange, onUplo
       );
 
     case FIELD_TYPES.COLOR: {
-      const selected = colors.find((c) => c.id === value);
+      const selected = colors.find((c) => c.id === text);
       return (
         <div className="form-group">
           <span className="form-label" id={`cf-${option.key}-label`}>
@@ -251,10 +330,10 @@ function CustomizationField({ option, value, colors, uploading, onChange, onUplo
                 key={color.id}
                 type="button"
                 role="radio"
-                aria-checked={value === color.id}
+                aria-checked={text === color.id}
                 aria-label={color.name}
                 title={color.name}
-                className={`color-swatch ${value === color.id ? "active" : ""}`}
+                className={`color-swatch ${text === color.id ? "active" : ""}`}
                 style={colorSwatchStyle(color.hexCode)}
                 onClick={() => onChange(color.id)}
               />
@@ -265,7 +344,7 @@ function CustomizationField({ option, value, colors, uploading, onChange, onUplo
     }
 
     case FIELD_TYPES.IMAGE: {
-      const preview = resolveImageUrl(value);
+      const preview = resolveImageUrl(text);
       return (
         <div className="form-group">
           {label}
@@ -319,7 +398,8 @@ function CustomizationField({ option, value, colors, uploading, onChange, onUplo
             id={`cf-${option.key}`}
             className="form-input"
             maxLength={option.maxLength || undefined}
-            value={value}
+            placeholder={option.placeholder || undefined}
+            value={text}
             required={option.required}
             onChange={(e) => onChange(e.target.value)}
           />
@@ -328,7 +408,11 @@ function CustomizationField({ option, value, colors, uploading, onChange, onUplo
   }
 }
 
-/** Pickers start on a real choice; free-text and uploads start empty. */
+/**
+ * Pickers start on a real choice; free-text, numbers and uploads start empty. A Yes/No field
+ * starts `undefined` — deliberately unanswered, so a required one cannot be satisfied by a
+ * default the customer never actually chose.
+ */
 function initialValues(options, colors) {
   const initial = {};
   for (const option of options) {
@@ -336,6 +420,8 @@ function initialValues(options, colors) {
       initial[option.key] = colors[0]?.id || "";
     } else if (option.fieldType === FIELD_TYPES.SELECT && option.required) {
       initial[option.key] = option.choices[0] || "";
+    } else if (option.fieldType === FIELD_TYPES.BOOLEAN) {
+      initial[option.key] = undefined;
     } else {
       initial[option.key] = "";
     }

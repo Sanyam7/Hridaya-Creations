@@ -205,10 +205,53 @@
 }
 .ad-option-main:focus-within, .ad-option-required:focus-within { outline: 2px solid var(--ad-pink); outline-offset: 2px; border-radius: 6px; }
 
+/* Per-product wording for a built-in option; sits on its own row inside .ad-option */
+.ad-linkbtn {
+  border: 0; background: none; padding: 0; cursor: pointer;
+  font-size: 0.75rem; font-weight: 600; color: var(--ad-pink); text-decoration: underline;
+}
+.ad-linkbtn:focus-visible { outline: 2px solid var(--ad-pink); outline-offset: 2px; border-radius: 4px; }
+.ad-builtin-settings {
+  flex-basis: 100%; display: flex; flex-direction: column; gap: 0.45rem;
+  padding-top: 0.5rem; margin-top: 0.15rem; border-top: 1px dashed var(--ad-line);
+}
+
+/* Admin-authored custom fields */
+.ad-customfield-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.ad-customfield {
+  display: flex; flex-direction: column; gap: 0.5rem;
+  padding: 0.6rem 0.7rem; border: 1px solid var(--ad-line); border-radius: 10px; background: #fff;
+}
+.ad-customfield-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.ad-customfield-title { font-size: 0.78rem; font-weight: 700; color: var(--ad-muted); letter-spacing: .02em; }
+.ad-customfield-tools { display: flex; gap: 0.25rem; }
+.ad-customfield-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 0.8rem; }
+.ad-customfield-foot { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
+.ad-customfield-key { font-size: 0.7rem; color: var(--ad-muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.ad-field-label { font-size: 0.8rem; font-weight: 600; color: var(--ad-muted); }
+.ad-iconbtn {
+  border: 1px solid var(--ad-line); background: #fff; border-radius: 7px; cursor: pointer;
+  width: 26px; height: 26px; line-height: 1; font-size: 0.85rem; color: var(--ad-muted);
+}
+.ad-iconbtn:hover:not(:disabled) { background: var(--ad-bg); color: var(--ad-ink); }
+.ad-iconbtn:focus-visible { outline: 2px solid var(--ad-pink); outline-offset: 1px; }
+.ad-iconbtn:disabled { opacity: .4; cursor: not-allowed; }
+.ad-iconbtn--danger:hover:not(:disabled) { background: #fdecea; color: #c0392b; border-color: #f3c9c4; }
+.ad-btn--add { align-self: flex-start; border-style: dashed; font-size: 0.8rem; }
+
+/* Per-line customization inside the order detail table */
+.ad-order-custom { list-style: none; margin: 0.3rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.12rem; }
+.ad-order-custom li { font-size: 0.76rem; color: var(--ad-muted); }
+.ad-order-custom-label { font-weight: 600; }
+
 /* Sits above the product form it is opened from */
 .ad-modal-overlay--nested { z-index: 1010; align-items: center; }
 .ad-modal--sm { max-width: 420px; }
 .ad-modal--sm p { font-size: 0.88rem; line-height: 1.5; margin: 0; color: var(--ad-muted); }
+
+@media (max-width: 560px) {
+  .ad-customfield-grid { grid-template-columns: 1fr; }
+}
 
 @media (max-width: 760px) {
   .admin-shell { flex-direction: column; }

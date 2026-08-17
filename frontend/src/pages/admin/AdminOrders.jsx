@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { adminApi, ORDER_STATUSES, ORDER_STATUS_TRANSITIONS } from "../../api";
+import { formatCustomizationValue } from "../../constants/productCustomization";
 import { Pager } from "./AdminProducts";
 
 const PAGE_SIZE = 10;
@@ -119,7 +120,22 @@ function OrderDetail({ order, onClose }) {
           <tbody>
             {(order.items || []).map((it, i) => (
               <tr key={i}>
-                <td>{it.productName || it.name}</td>
+                <td>
+                  {it.productName || it.name}
+                  {/* Read from the line's own snapshot, so what the customer actually
+                      asked for stays on the order even after the product's fields
+                      are renamed, retyped or removed. */}
+                  {(it.customization || []).length > 0 && (
+                    <ul className="ad-order-custom">
+                      {it.customization.map((c) => (
+                        <li key={c.key}>
+                          <span className="ad-order-custom-label">{c.label}:</span>{" "}
+                          {formatCustomizationValue(c.fieldType, c.value)}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </td>
                 <td>{it.quantity}</td>
                 <td>₹{Number(it.lineTotal ?? 0).toLocaleString()}</td>
               </tr>

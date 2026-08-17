@@ -4,12 +4,17 @@ const CartContext = createContext(null);
 
 /**
  * Stable identity for a set of customization values — sorted so it does not depend on the
- * order the fields were filled in. Only ever compared locally, so a readable string is
- * enough; the server derives its own digest for the same purpose.
+ * order the fields were filled in, and stringified so a value's type does not affect the
+ * comparison (the server canonicalizes 7 and "7" to the same thing, so we must too, or two
+ * lines would look distinct here and merge on checkout). Only ever compared locally; the
+ * server derives its own digest for the same purpose.
+ *
+ * `false` is a real answer and takes part in the signature — only truly empty values drop out.
  */
 function customizationSignature(customization) {
   const entries = Object.entries(customization || {})
     .filter(([, v]) => v !== undefined && v !== null && v !== "")
+    .map(([k, v]) => [k, String(v)])
     .sort(([a], [b]) => a.localeCompare(b));
   return entries.length ? JSON.stringify(entries) : "none";
 }
@@ -25,12 +30,19 @@ export function CartProvider({ children }) {
    * identical one bumps the quantity. Mirrors how the backend keys cart lines.
    *
    * @param product the catalog item being added
-   * @param {{customization?: Object, qty?: number}} [selection] omit customization for readymade
+   * @param {{customization?: Object, fields?: Array, qty?: number}} [selection]
+   *        omit customization for readymade. `fields` is the configuration the customer
+   *        answered, snapshotted onto the line so the cart can label and format the values
+   *        without re-fetching the product.
    */
   const addToCart = useCallback((product, selection = {}) => {
     const customization = selection.customization || {};
     const qty = parseInt(selection.qty, 10) || 1;
     const signature = customizationSignature(customization);
+    // Only the fields actually answered, in the order they were presented.
+    const fields = (selection.fields || [])
+      .filter((f) => Object.prototype.hasOwnProperty.call(customization, f.key))
+      .map(({ key, label, fieldType }) => ({ key, label, fieldType }));
 
     setItems(prev => {
       const match = prev.find(
@@ -52,7 +64,10 @@ export function CartProvider({ children }) {
         emoji:         product.emoji,
         price:         product.price,
         qty,
-        customization,                // keyed by customization option; {} for readymade
+        customization,                // keyed by customization field; {} for readymade
+        // Label + type for each answered field, so the cart renders "Gift wrap: Yes"
+        // rather than "cf_giftWrap: true" for a field it has never heard of.
+        customizationFields: fields,
         signature,
       }];
     });

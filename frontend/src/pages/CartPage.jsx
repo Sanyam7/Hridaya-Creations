@@ -4,19 +4,34 @@ import { useCart } from "../context/CartContext";
 import { useAuth } from "../context/AuthContext";
 import { cartApi, addressApi, orderApi } from "../api";
 import { colorSwatchStyle, normalizeProductColors } from "../constants/productColors";
-import { catalogEntry } from "../constants/productCustomization";
+import { catalogEntry, formatCustomizationValue } from "../constants/productCustomization";
 import productMap from "../data/productMap.json";
 import "./CartPage.css";
 
 /** Resolve a stored customization colour to {id, name, hexCode}, or null when there is none. */
 const selectedColor = (color) => (color ? normalizeProductColors([color])[0] || null : null);
 
-/** Human label for a customization key, falling back to the key itself. */
-const optionLabel = (key) => catalogEntry(key)?.label || key;
+/**
+ * The customization a line was added with, resolved against the field snapshot taken at the
+ * time. Falls back to the built-in catalog and then to the raw key, so a line added before
+ * snapshots existed still renders something sensible rather than nothing.
+ */
+const customizationEntries = (item) => {
+  const byKey = new Map((item.customizationFields || []).map((f) => [f.key, f]));
+  return Object.entries(item.customization || {}).map(([key, value]) => {
+    const field = byKey.get(key);
+    return {
+      key,
+      label: field?.label || catalogEntry(key)?.label || key,
+      fieldType: field?.fieldType || catalogEntry(key)?.fieldType || "TEXT",
+      value,
+    };
+  });
+};
 
-/** The non-colour customization entries of a cart line, ready to render as chips. */
+/** The non-colour entries of a cart line, ready to render as chips. */
 const customizationChips = (item) =>
-  Object.entries(item.customization || {}).filter(([key]) => key !== "color");
+  customizationEntries(item).filter((entry) => entry.key !== "color");
 
 export default function CartPage() {
   const { items, removeFromCart, updateQty, clearCart, totalItems, totalPrice } = useCart();
@@ -57,12 +72,12 @@ export default function CartPage() {
   const buildNotes = () =>
     items
       .map((i) => {
-        // Driven by whatever the product was configured with, so a new customization
-        // option shows up in the order notes without touching this.
-        const bits = Object.entries(i.customization || {}).map(([key, value]) =>
+        // Driven by whatever the product was configured with, so a field the admin
+        // invented shows up in the order notes without touching this.
+        const bits = customizationEntries(i).map(({ key, label, fieldType, value }) =>
           key === "color"
             ? `Colour: ${selectedColor(value)?.name || value}`
-            : `${optionLabel(key)}: ${value}`
+            : `${label}: ${formatCustomizationValue(fieldType, value)}`
         );
         return `- ${i.name} x${i.qty}${bits.length ? " (" + bits.join("; ") + ")" : ""}`;
       })
@@ -219,9 +234,9 @@ export default function CartPage() {
                   <div className="item-name">{item.name}</div>
 
                   <div className="item-custom">
-                    {customizationChips(item).map(([key, value]) => (
+                    {customizationChips(item).map(({ key, label, fieldType, value }) => (
                       <span className="custom-chip" key={key}>
-                        {optionLabel(key)}: {key === "photo" ? "image attached" : value}
+                        {label}: {formatCustomizationValue(fieldType, value)}
                       </span>
                     ))}
                   </div>
