@@ -7,6 +7,8 @@ import HomePage  from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import CartPage  from "./pages/CartPage";
+import CategoryPage from "./pages/CategoryPage";
+import ProductPage from "./pages/ProductPage";
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminProducts from "./pages/admin/AdminProducts";
@@ -50,6 +52,15 @@ export default function App() {
             }/>
             <Route path="/cart" element={
               <Layout><CartPage /></Layout>
+            }/>
+
+            {/* Catalog browsing — real routes, so a listing or a product survives
+                a refresh and can be linked to or shared. */}
+            <Route path="/category/:slug" element={
+              <Layout><CategoryPage /></Layout>
+            }/>
+            <Route path="/product/:productId" element={
+              <Layout><ProductPage /></Layout>
             }/>
 
             {/* Fallback */}

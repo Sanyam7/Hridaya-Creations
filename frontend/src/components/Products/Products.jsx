@@ -1,55 +1,18 @@
 import { useState, useEffect, useMemo } from "react";
 import { productApi, resolveImageUrl } from "../../api";
-import { normalizeProductColors } from "../../constants/productColors";
-import {
-  catalogEntry,
-  isCustomizable,
-  normalizeCustomizationOptions,
-} from "../../constants/productCustomization";
+import { categoryVisuals, DEFAULT_FEATURES, toCatalogProduct } from "../../constants/catalog";
 import { PRODUCTS } from "../../data/products";
 import ProductCard from "./ProductCard";
-import VariantsModal from "../Modal/VariantsModal";
 import "./Products.css";
 
-// Sensible visual defaults for categories the curated catalog doesn't cover
-// (e.g. brand-new categories an admin creates).
-const DEFAULT_FEATURES = [
-  "Personalized just for you",
-  "Premium materials",
-  "Custom name & photo",
-  "Carefully handcrafted",
-];
-
-// Reuse the curated emoji/image/features from the local catalog, keyed by name
-// (the backend categories were seeded from these names). Colours are not taken
-// from here — they come per-product from the admin's configuration.
-const VISUALS = PRODUCTS.reduce((acc, p) => {
-  acc[p.name] = { emoji: p.emoji, image: p.image, features: p.features, desc: p.desc };
-  return acc;
-}, {});
-
-// The curated offline catalog predates per-product configuration, so give it the same
-// starting form the migration backfills onto previously-customizable products. Only ever
-// reached when the API is unreachable; live products carry their own configuration.
-const FALLBACK_OPTIONS = [
-  { ...catalogEntry("customerName"), required: true },
-  { ...catalogEntry("photo"), required: false },
-  { ...catalogEntry("message"), required: false },
-].filter(Boolean);
-
-/** Decorate the curated catalog so its variants behave like customizable products. */
-function withFallbackCustomization(categories) {
-  return categories.map((category) => ({
-    ...category,
-    variants: (category.variants || []).map((variant) => ({
-      ...variant,
-      productType: "CUSTOMIZABLE",
-      customizationOptions: FALLBACK_OPTIONS,
-      hasColors: Array.isArray(variant.colors) && variant.colors.length > 0,
-      colors: normalizeProductColors(variant.colors),
-    })),
-  }));
-}
+/**
+ * The collections strip on the home page.
+ *
+ * Each card is one category and links through to that category's listing page. Browsing used
+ * to happen in a stacked pair of modals, which capped the products at a 1100px panel however
+ * wide the screen was; the listing is a real page now, so this component only has to describe
+ * the collections.
+ */
 
 /** Group live backend products by category into the shape the cards expect. */
 function groupByCategory(apiProducts, catImages = {}) {
@@ -59,45 +22,31 @@ function groupByCategory(apiProducts, catImages = {}) {
     if (!groups.has(cat)) groups.set(cat, []);
     groups.get(cat).push(p);
   }
+
   const cards = [];
   for (const [cat, items] of groups.entries()) {
-    const v = VISUALS[cat] || {};
-    const emoji = v.emoji || "🎁";
-    // Prefer an admin-uploaded category image, then the curated local image,
-    // then the first product's own primary image.
+    const visuals = categoryVisuals(cat);
+    const emoji = visuals.emoji || "🎁";
+    // Prefer an admin-uploaded category image, then the curated local one, then the
+    // first product that has an image of its own.
     const uploadedCat = resolveImageUrl(catImages[cat]);
-    const firstProductImg = resolveImageUrl(items.find((p) => p.primaryImageUrl)?.primaryImageUrl);
-    const cardImage = uploadedCat || v.image || firstProductImg || null;
+    const variants = items.map(toCatalogProduct).filter(Boolean);
+    const firstProductImg = variants.find((v) => v.image)?.image || null;
+    const cardImage = uploadedCat || visuals.image || firstProductImg || null;
+
     cards.push({
       id: cat,
       name: cat,
       emoji,
       image: cardImage,
-      desc: v.desc || `Personalized ${cat.toLowerCase()} crafted just for you.`,
+      desc: visuals.desc || `Personalized ${cat.toLowerCase()} crafted just for you.`,
       tag: "Collection",
-      features: v.features || DEFAULT_FEATURES,
-      variants: items
-        .map((p) => ({
-          id: p.id,                       // real backend product id
-          backendProductId: p.id,
-          name: p.name,
-          emoji,
-          price: Number(p.sellingPrice),
-          desc: p.shortDescription || p.description || "",
-          badge: p.featured ? "Featured ✨" : (p.tags && p.tags[0]) || "New",
-          // Exactly the colours the admin configured — absent for older products.
-          hasColors: !!p.hasColors,
-          colors: normalizeProductColors(p.colors),
-          // Drives whether this variant gets a customization step at all, and which
-          // fields that step shows. Nothing about the form is decided in the UI.
-          productType: isCustomizable(p) ? "CUSTOMIZABLE" : "READYMADE",
-          customizationOptions: normalizeCustomizationOptions(p.customizationOptions),
-          image: resolveImageUrl(p.primaryImageUrl),
-        }))
-        .sort((a, b) => a.price - b.price),
+      features: visuals.features || DEFAULT_FEATURES,
+      variants: variants.sort((a, b) => a.price - b.price),
       hasImage: !!cardImage,
     });
   }
+
   // Curated (image-backed) categories first, then the rest alphabetically.
   return cards.sort((a, b) =>
     a.hasImage === b.hasImage ? a.name.localeCompare(b.name) : a.hasImage ? -1 : 1
@@ -105,7 +54,6 @@ function groupByCategory(apiProducts, catImages = {}) {
 }
 
 export default function Products() {
-  const [activeProduct, setActiveProduct] = useState(null);
   const [showAll, setShowAll] = useState(false);
   const [apiProducts, setApiProducts] = useState(null); // null = loading
   const [catImages, setCatImages] = useState({});
@@ -135,10 +83,10 @@ export default function Products() {
     [apiProducts, catImages]
   );
 
-  // Resilient fallback: if the API is unreachable (e.g. backend cold start),
-  // show the curated local catalog so the page is never empty.
+  // Resilient fallback: if the API is unreachable (e.g. backend cold start), show the
+  // curated local catalog so the page is never empty.
   const usingFallback = error || (apiProducts && categories.length === 0);
-  const list = usingFallback ? withFallbackCustomization(PRODUCTS) : categories;
+  const list = usingFallback ? PRODUCTS : categories;
   const loading = apiProducts === null && !error;
   const visibleProducts = showAll ? list : list.slice(0, 4);
 
@@ -147,23 +95,17 @@ export default function Products() {
       <div className="section-label">✦ Our Collection ✦</div>
       <h2 className="section-title">Customize Anything &amp; Everything</h2>
       <p className="section-desc">
-        Tap any product to explore all available designs. Every piece is
-        handcrafted with love — pick a style, personalize it, and it's yours.
+        Tap any collection to browse every design in it. Every piece is handcrafted with
+        love — pick a style, personalize it, and it&rsquo;s yours.
       </p>
 
       {loading ? (
-        <div style={{ textAlign: "center", padding: "3rem 1rem", color: "var(--pink-light, #c77dba)", fontSize: "1.05rem" }}>
-          Loading our collection…
-        </div>
+        <div className="products-loading">Loading our collection…</div>
       ) : (
         <>
           <div className="products-grid">
             {visibleProducts.map((product) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                onSelect={() => setActiveProduct(product)}
-              />
+              <ProductCard key={product.id} product={product} />
             ))}
           </div>
 
@@ -175,13 +117,6 @@ export default function Products() {
             </div>
           )}
         </>
-      )}
-
-      {activeProduct && (
-        <VariantsModal
-          product={activeProduct}
-          onClose={() => setActiveProduct(null)}
-        />
       )}
     </section>
   );

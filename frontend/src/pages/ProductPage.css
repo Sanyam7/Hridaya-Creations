@@ -1,0 +1,214 @@
+/* ---------- Product detail page ----------
+   Desktop: gallery and information side by side, information sticky so the
+   primary action stays reachable while the customer reads.
+   Mobile: one column, stacked images -> name -> price -> details -> action.   */
+
+.pdp {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: clamp(1.5rem, 4vw, 3.5rem);
+  align-items: start;
+}
+
+.pdp-media {
+  position: sticky;
+  top: 6rem;
+  min-width: 0;
+}
+
+.pdp-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .55rem;
+}
+
+.pdp-category {
+  font-size: .78rem;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--pink-light);
+  text-decoration: none;
+}
+.pdp-category:hover { text-decoration: underline; }
+
+.pdp-title {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(1.6rem, 3.2vw, 2.4rem);
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.pdp-price-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: .6rem;
+  margin-top: .3rem;
+}
+.pdp-price { font-size: clamp(1.5rem, 3vw, 2rem); font-weight: 700; color: var(--pink-light); }
+.pdp-was { font-size: 1rem; color: rgba(196,181,212,.6); text-decoration: line-through; }
+.pdp-off {
+  font-size: .75rem; font-weight: 600;
+  padding: .2rem .6rem; border-radius: var(--radius-pill);
+  background: rgba(34,197,94,.15); color: #4ade80;
+  border: 1px solid rgba(34,197,94,.3);
+}
+
+.pdp-meta {
+  display: flex; flex-wrap: wrap; gap: .5rem;
+  margin: .5rem 0 .3rem;
+}
+.pdp-stock, .pdp-type {
+  font-size: .76rem; padding: .28rem .75rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,.04);
+  color: var(--gray);
+}
+.pdp-stock { color: #4ade80; border-color: rgba(34,197,94,.28); background: rgba(34,197,94,.1); }
+.pdp-stock.is-out { color: #fca5a5; border-color: rgba(248,113,113,.3); background: rgba(248,113,113,.1); }
+
+/* ---------- Sections ---------- */
+.pdp-section {
+  padding-top: 1.1rem;
+  margin-top: .6rem;
+  border-top: 1px solid var(--border);
+}
+.pdp-h2 {
+  font-size: .78rem; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--gray); margin-bottom: .6rem; font-weight: 600;
+}
+.pdp-desc {
+  font-size: .92rem; line-height: 1.85; color: #ded5ea;
+  /* Never clamped here: the listing summarises, the detail page shows it all. */
+  white-space: pre-line;
+}
+
+.pdp-colors { list-style: none; display: flex; flex-wrap: wrap; gap: .7rem; }
+.pdp-color {
+  display: flex; align-items: center; gap: .4rem;
+  font-size: .82rem; color: var(--gray);
+  padding: .3rem .7rem .3rem .35rem;
+  border: 1px solid var(--border); border-radius: var(--radius-pill);
+  background: rgba(255,255,255,.04);
+}
+.pdp-swatch {
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.35); flex-shrink: 0;
+}
+
+.pdp-options { list-style: none; display: flex; flex-direction: column; gap: .4rem; }
+.pdp-options li {
+  font-size: .87rem; color: #ded5ea;
+  padding-left: 1.2rem; position: relative;
+}
+.pdp-options li::before {
+  content: "✦"; position: absolute; left: 0; color: var(--pink-light); font-size: .8rem;
+}
+.pdp-req { color: var(--gray); font-size: .78rem; }
+
+.pdp-specs {
+  display: grid;
+  grid-template-columns: minmax(90px, auto) 1fr;
+  gap: .45rem 1.2rem;
+  font-size: .85rem;
+}
+.pdp-specs dt { color: var(--gray); }
+.pdp-specs dd { color: #ded5ea; word-break: break-word; }
+
+/* ---------- Actions ---------- */
+.pdp-actions {
+  margin-top: 1.6rem;
+  padding-top: 1.4rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: .9rem;
+}
+
+.pdp-cta {
+  width: 100%;
+  padding: 1.05rem 2rem;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(135deg, var(--pink), var(--purple));
+  color: #fff;
+  font-family: 'Poppins', sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-pink);
+  transition: transform .2s, box-shadow .2s;
+}
+.pdp-cta:hover:not(:disabled) { transform: translateY(-2px); box-shadow: var(--shadow-pink-hover); }
+.pdp-cta:disabled {
+  background: rgba(255,255,255,.08); color: var(--gray);
+  box-shadow: none; cursor: not-allowed;
+}
+.pdp-cta:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+
+.pdp-action-note { font-size: .8rem; color: var(--gray); text-align: center; line-height: 1.6; }
+
+.pdp-qty { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.pdp-qty-label { font-size: .85rem; color: var(--gray); }
+.pdp-qty-control {
+  display: flex; align-items: center; gap: .2rem;
+  border: 1px solid var(--border); border-radius: var(--radius-pill);
+  background: rgba(255,255,255,.05); padding: .2rem;
+}
+.pdp-qty-control button {
+  width: 36px; height: 36px; border-radius: 50%;
+  border: none; background: transparent; color: var(--white);
+  font-size: 1.2rem; cursor: pointer; line-height: 1;
+  transition: background .2s;
+}
+.pdp-qty-control button:hover:not(:disabled) { background: rgba(255,77,158,.25); }
+.pdp-qty-control button:disabled { opacity: .35; cursor: not-allowed; }
+.pdp-qty-control span { min-width: 2.2rem; text-align: center; font-weight: 600; }
+
+.pdp-added {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: .8rem;
+  padding: .85rem 1.1rem;
+  border-radius: var(--radius-sm);
+  background: rgba(34,197,94,.1);
+  border: 1px solid rgba(34,197,94,.3);
+  font-size: .88rem; color: #86efac;
+  animation: fadeUp .3s ease;
+}
+.pdp-added-btn { padding: .5rem 1.2rem; font-size: .82rem; text-decoration: none; }
+
+/* Skeleton stage matches the gallery ratio so the swap does not shift the page. */
+.sk--stage { width: 100%; aspect-ratio: 1 / 1; border-radius: var(--radius-md); }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 980px) {
+  .pdp { grid-template-columns: minmax(0, 1fr); }
+  /* Sticky is only useful beside a second column; stacked it would trap the image. */
+  .pdp-media { position: static; }
+}
+
+@media (max-width: 560px) {
+  .pdp-specs { grid-template-columns: 1fr; gap: .15rem; }
+  .pdp-specs dd { margin-bottom: .5rem; }
+  .pdp-qty { justify-content: space-between; }
+}
+
+/* On a phone the action bar follows the customer down the page. */
+@media (max-width: 720px) {
+  .pdp-actions {
+    position: sticky;
+    bottom: 0;
+    background: linear-gradient(to top, var(--dark) 72%, transparent);
+    padding: 1rem 0 .9rem;
+    margin-top: 1.8rem;
+    z-index: 5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pdp-cta { transition: none; }
+  .pdp-cta:hover:not(:disabled) { transform: none; }
+  .pdp-added { animation: none; }
+}

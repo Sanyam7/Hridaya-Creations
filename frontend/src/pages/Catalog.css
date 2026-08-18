@@ -1,0 +1,117 @@
+/* ---------- Shared catalog page chrome ----------
+   Used by the category listing and the product page.
+
+   `catalog-shell` is the fix for the cramped listing: the products used to live
+   inside a 1100px bottom-sheet modal, so on anything wider than a laptop most of
+   the screen went unused. This is a fluid container instead — it grows with the
+   viewport up to a readable ceiling and pads with vw units, so the grid gets the
+   real content area without `100vw` (which would overflow by the scrollbar width
+   and scroll the page sideways).                                                */
+
+.catalog-shell {
+  width: 100%;
+  max-width: 1760px;
+  margin: 0 auto;
+  padding: clamp(5.5rem, 9vw, 7rem) clamp(1rem, 3.5vw, 3rem) clamp(3rem, 6vw, 5rem);
+  min-height: 70vh;
+}
+
+/* ---------- Breadcrumb ---------- */
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .45rem;
+  font-size: .82rem;
+  color: var(--gray);
+  margin-bottom: 1.4rem;
+}
+.crumbs a { color: var(--pink-light); text-decoration: none; }
+.crumbs a:hover { text-decoration: underline; }
+.crumbs span[aria-current] { color: var(--white); }
+
+/* ---------- Page header ---------- */
+.catalog-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1.2rem;
+  margin-bottom: 1.8rem;
+  border-bottom: 1px solid var(--border);
+}
+.catalog-title {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(1.7rem, 3.6vw, 2.6rem);
+  font-weight: 700;
+  background: linear-gradient(90deg, #fff 55%, var(--pink-light));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.catalog-sub {
+  color: var(--gray);
+  font-size: .9rem;
+  line-height: 1.7;
+  margin-top: .4rem;
+  max-width: 70ch;
+}
+.catalog-tools { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.catalog-count { font-size: .82rem; color: var(--gray); white-space: nowrap; }
+.catalog-sort .form-select {
+  padding: .55rem .9rem;
+  border-radius: var(--radius-pill);
+  background: rgba(255,255,255,.06);
+  border: 1px solid var(--border);
+  color: var(--white);
+  font-family: 'Poppins', sans-serif;
+  font-size: .85rem;
+  cursor: pointer;
+}
+.catalog-sort .form-select:focus { border-color: var(--pink); outline: none; }
+.catalog-sort option { background: #1a1030; }
+
+/* ---------- Pagination ---------- */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2rem;
+  margin-top: 2.5rem;
+  flex-wrap: wrap;
+}
+.pager-btn {
+  padding: .6rem 1.4rem;
+  border-radius: var(--radius-pill);
+  background: rgba(255,255,255,.06);
+  border: 1px solid var(--border);
+  color: var(--white);
+  font-family: 'Poppins', sans-serif;
+  font-size: .85rem;
+  cursor: pointer;
+  transition: background .2s, border-color .2s;
+}
+.pager-btn:hover:not(:disabled) { background: rgba(255,77,158,.15); border-color: var(--pink); }
+.pager-btn:disabled { opacity: .4; cursor: not-allowed; }
+.pager-status { font-size: .85rem; color: var(--gray); }
+
+/* ---------- Loading / empty / error blocks ---------- */
+.state-block {
+  text-align: center;
+  padding: clamp(3rem, 10vw, 6rem) 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .8rem;
+}
+.state-icon { font-size: 3.5rem; opacity: .85; }
+.state-title { font-family: 'Playfair Display', serif; font-size: 1.6rem; color: var(--pink-light); }
+.state-text { color: var(--gray); font-size: .92rem; max-width: 46ch; line-height: 1.7; }
+.state-block .btn-primary,
+.state-block .btn-outline { margin-top: .8rem; text-decoration: none; display: inline-block; }
+
+@media (max-width: 640px) {
+  .catalog-head { align-items: flex-start; flex-direction: column; }
+  .catalog-tools { width: 100%; justify-content: space-between; }
+}
